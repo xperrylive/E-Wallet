@@ -1,25 +1,41 @@
 "use client"
 
 import { useState } from "react"
+import { mutate } from "swr"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Wallet } from "lucide-react"
+import { transferMoney } from "@/lib/api"
+import { v4 as uuidv4 } from 'uuid';
 
 export function TransferForm() {
   const [recipientId, setRecipientId] = useState("")
   const [amount, setAmount] = useState("")
   const [description, setDescription] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Form submission logic would go here
-    console.log({ recipientId, amount, description })
+    setLoading(true)
+    try {
+      await transferMoney(recipientId, amount, description, uuidv4())
+      setRecipientId("")
+      setAmount("")
+      setDescription("")
+      alert("Transfer successful!")
+      mutate(["wallet", undefined]) // Re-fetch wallet
+      mutate(["transactions", undefined]) // Re-fetch transactions
+    } catch (err: any) {
+      alert("Transfer failed: " + (err.message || err))
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const isFormValid = recipientId.trim() !== "" && amount.trim() !== ""
+  const isFormValid = recipientId.trim() !== "" && amount.trim() !== "" && !loading
 
   return (
     <Card className="border-border bg-card">

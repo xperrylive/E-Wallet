@@ -59,10 +59,12 @@ function QRFormView({
   formData,
   setFormData,
   onGenerate,
+  loading,
 }: {
   formData: QRFormData
   setFormData: (data: QRFormData) => void
   onGenerate: () => void
+  loading: boolean
 }) {
   const isStaticAmount = formData.qrType === "static"
   const canGenerate = formData.qrType === "dynamic" || (isStaticAmount && parseFloat(formData.amount) > 0)
@@ -164,11 +166,11 @@ function QRFormView({
 
       <Button
         onClick={onGenerate}
-        disabled={!canGenerate}
+        disabled={!canGenerate || loading}
         className="h-12 w-full text-base font-medium"
       >
         <QrCode className="mr-2 size-5" />
-        Generate Code
+        {loading ? "Generating..." : "Generate Code"}
       </Button>
     </div>
   )
@@ -176,9 +178,11 @@ function QRFormView({
 
 function QRSuccessView({
   formData,
+  qrImageUrl,
   onClose,
 }: {
   formData: QRFormData
+  qrImageUrl: string | null
   onClose: () => void
 }) {
   const handleShare = async () => {
@@ -197,7 +201,11 @@ function QRSuccessView({
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border">
-        <QRCodePlaceholder />
+        {qrImageUrl ? (
+          <img src={qrImageUrl} alt="QR Code" className="size-48" />
+        ) : (
+          <QRCodePlaceholder />
+        )}
       </div>
 
       <div className="text-center">
@@ -241,6 +249,8 @@ function QRSuccessView({
 export function QRGenerator({ trigger }: QRGeneratorProps) {
   const [open, setOpen] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState < QRFormData > ({
     qrType: "static",
     amount: "",
@@ -248,8 +258,27 @@ export function QRGenerator({ trigger }: QRGeneratorProps) {
     expiration: "15min",
   })
 
-  const handleGenerate = () => {
-    setShowSuccess(true)
+  const handleGenerate = async () => {
+    setLoading(true)
+    try {
+      const { generateQR } = await import("@/lib/api")
+      let minutes = 15;
+      if (formData.expiration === "1hour") minutes = 60;
+      if (formData.expiration === "24hours") minutes = 1440;
+
+      const res = await generateQR(
+        formData.qrType === "static" ? formData.amount : null,
+        formData.qrType,
+        formData.description,
+        minutes
+      )
+      setQrImageUrl(res.qr_image_url)
+      setShowSuccess(true)
+    } catch (err: any) {
+      alert("Failed to generate QR: " + (err.message || err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleClose = () => {
@@ -257,6 +286,7 @@ export function QRGenerator({ trigger }: QRGeneratorProps) {
     // Reset state after close animation
     setTimeout(() => {
       setShowSuccess(false)
+      setQrImageUrl(null)
       setFormData({
         qrType: "static",
         amount: "",
@@ -291,12 +321,13 @@ export function QRGenerator({ trigger }: QRGeneratorProps) {
         </DialogHeader>
 
         {showSuccess ? (
-          <QRSuccessView formData={formData} onClose={handleClose} />
+          <QRSuccessView formData={formData} qrImageUrl={qrImageUrl} onClose={handleClose} />
         ) : (
           <QRFormView
             formData={formData}
             setFormData={setFormData}
             onGenerate={handleGenerate}
+            loading={loading}
           />
         )}
       </DialogContent>

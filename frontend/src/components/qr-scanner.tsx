@@ -19,23 +19,34 @@ interface QRScannerProps {
 }
 
 interface ScannedPayload {
+  qr_code_id: string
   merchantName: string
   amountType: "static" | "dynamic"
   amount?: string
   description?: string
 }
 
-function ScannerViewfinder({ onScan }: { onScan: () => void }) {
+function ScannerViewfinder({ onScan }: { onScan: (payload: ScannedPayload) => void }) {
   return (
     <div className="space-y-4">
       <div
         className="relative mx-auto aspect-square w-full max-w-72 cursor-pointer overflow-hidden rounded-2xl bg-zinc-900"
-        onClick={onScan}
+        onClick={() => onScan({
+          qr_code_id: "QR-MOCK-DYNAMIC",
+          merchantName: "Ahmad bin Abdullah",
+          amountType: "dynamic",
+          description: "Personal transfer",
+        })}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
-            onScan()
+            onScan({
+              qr_code_id: "QR-MOCK-DYNAMIC",
+              merchantName: "Ahmad bin Abdullah",
+              amountType: "dynamic",
+              description: "Personal transfer",
+            })
           }
         }}
         aria-label="Tap to simulate scan"
@@ -63,12 +74,47 @@ function ScannerViewfinder({ onScan }: { onScan: () => void }) {
         </div>
       </div>
 
+      <div className="flex gap-2">
+        <Input 
+          placeholder="Paste QR Code ID here for testing..." 
+          onChange={(e) => {
+            if (e.target.value.length > 10) {
+              // Parse URL if it's the full data URL, e.g. ewallet://pay?qr_id=QR-XYZ&amount=2500
+              let qrId = e.target.value;
+              let amountStr = undefined;
+              let type = "dynamic";
+              if (qrId.includes("qr_id=")) {
+                const url = new URL(qrId);
+                qrId = url.searchParams.get("qr_id") || qrId;
+                const amt = url.searchParams.get("amount");
+                if (amt && amt !== "0") {
+                   amountStr = (parseInt(amt) / 100).toFixed(2);
+                   type = "static";
+                }
+              }
+              onScan({
+                qr_code_id: qrId,
+                merchantName: "Test Merchant",
+                amountType: type as any,
+                amount: amountStr,
+                description: "Scanned Payment"
+              });
+            }
+          }}
+        />
+      </div>
+
       <Button
         variant="secondary"
         className="h-12 w-full gap-2"
         onClick={() => {
-          // Mock: clicking upload also triggers a scan
-          onScan()
+          onScan({
+            qr_code_id: "QR-TEST",
+            merchantName: "Coffee Corner Sdn Bhd",
+            amountType: "static",
+            amount: "15.90",
+            description: "Order #1234 - Iced Latte",
+          })
         }}
       >
         <Upload className="size-4" />
@@ -204,33 +250,33 @@ export function QRScanner({ trigger }: QRScannerProps) {
     }
   }, [open])
 
-  const handleScan = () => {
-    // Mock scanned payload - alternates between static and dynamic
-    const mockPayloads: ScannedPayload[] = [
-      {
-        merchantName: "Coffee Corner Sdn Bhd",
-        amountType: "static",
-        amount: "15.90",
-        description: "Order #1234 - Iced Latte",
-      },
-      {
-        merchantName: "Ahmad bin Abdullah",
-        amountType: "dynamic",
-        description: "Personal transfer",
-      },
-    ]
-
-    const payload = scanType === "static" ? mockPayloads[0] : mockPayloads[1]
+  const handleScan = (payload: ScannedPayload) => {
     setScannedPayload(payload)
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!scannedPayload) return
     setIsConfirming(true)
-    // Mock confirmation delay
-    setTimeout(() => {
-      setIsConfirming(false)
+    try {
+      const { payQR } = await import("@/lib/api")
+      const { v4: uuidv4 } = await import("uuid")
+      const { mutate } = await import("swr")
+
+      await payQR(
+        scannedPayload.qr_code_id,
+        scannedPayload.amountType === "dynamic" ? dynamicAmount : null,
+        uuidv4()
+      )
+      
+      alert("Payment successful!")
+      mutate(["wallet", undefined])
+      mutate(["transactions", undefined])
       handleClose()
-    }, 1500)
+    } catch (err: any) {
+      alert("Payment failed: " + (err.message || err))
+    } finally {
+      setIsConfirming(false)
+    }
   }
 
   const handleClose = () => {

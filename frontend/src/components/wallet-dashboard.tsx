@@ -1,7 +1,8 @@
 "use client"
 
+import { mutate } from "swr"
 import useSWR from "swr"
-import { fetchWallet, type Wallet } from "@/lib/api"
+import { fetchWallet, createWallet, type Wallet } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Wallet as WalletIcon, Send, QrCode, AlertCircle, TrendingUp } from "lucide-react"
@@ -9,6 +10,7 @@ import { TransactionHistory } from "@/components/transaction-history"
 import { TransferForm } from "@/components/transfer-form"
 import { QRGenerator } from "@/components/qr-generator"
 import { QRScanner } from "@/components/qr-scanner"
+import { useState } from "react"
 
 interface WalletDashboardProps {
   token: string
@@ -42,6 +44,20 @@ function WalletLoadingSkeleton() {
 }
 
 function WalletNotFound() {
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateWallet = async () => {
+    setLoading(true);
+    try {
+      await createWallet();
+      mutate(["wallet", undefined]);
+    } catch (error: any) {
+      alert("Failed to create wallet: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card className="border-border bg-card">
       <CardContent className="flex flex-col items-center justify-center py-12">
@@ -52,10 +68,10 @@ function WalletNotFound() {
         <p className="mt-2 text-center text-sm text-muted-foreground">
           We couldn&apos;t find a wallet associated with your account.
           <br />
-          Please contact support or create a new wallet.
+          Please create a new wallet to continue.
         </p>
-        <Button className="mt-6" variant="outline">
-          Create Wallet
+        <Button className="mt-6" variant="outline" onClick={handleCreateWallet} disabled={loading}>
+          {loading ? "Creating..." : "Create Wallet"}
         </Button>
       </CardContent>
     </Card>

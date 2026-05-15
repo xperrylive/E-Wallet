@@ -2,6 +2,7 @@
 DRF Serializers for wallet app.
 """
 
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Wallet, Transaction, QRCode, Webhook, WebhookDelivery
 
@@ -36,7 +37,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 class TransferRequestSerializer(serializers.Serializer):
     recipient_wallet_id = serializers.UUIDField()
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, max_value=5000.00)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'), max_value=Decimal('5000.00'))
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
     idempotency_key = serializers.UUIDField()
 
@@ -60,7 +61,7 @@ class QRCodeSerializer(serializers.ModelSerializer):
 
 
 class QRGenerateRequestSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, required=False)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'), required=False)
     qr_type = serializers.ChoiceField(choices=['static', 'dynamic'])
     description = serializers.CharField(max_length=200, required=False, allow_blank=True)
     expires_in_minutes = serializers.IntegerField(min_value=1, max_value=1440, default=15)
@@ -69,7 +70,7 @@ class QRGenerateRequestSerializer(serializers.Serializer):
 
 class QRPayRequestSerializer(serializers.Serializer):
     qr_code_id = serializers.CharField(max_length=100)
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, required=False)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'), required=False)
     idempotency_key = serializers.UUIDField()
 
 

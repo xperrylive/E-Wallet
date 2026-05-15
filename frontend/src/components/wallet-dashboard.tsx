@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Wallet as WalletIcon, Send, QrCode, AlertCircle, TrendingUp } from "lucide-react"
 import { TransactionHistory } from "@/components/transaction-history"
 import { TransferForm } from "@/components/transfer-form"
+import { QRGenerator } from "@/components/qr-generator"
+import { QRScanner } from "@/components/qr-scanner"
 
 interface WalletDashboardProps {
   token: string
@@ -119,21 +121,29 @@ function WalletBalance({ wallet }: { wallet: Wallet }) {
 function ActionButtons() {
   return (
     <div className="grid grid-cols-2 gap-4">
-      <Button
-        className="h-14 gap-3 text-base font-medium"
-        size="lg"
-      >
-        <Send className="size-5" />
-        Send Money
-      </Button>
-      <Button
-        className="h-14 gap-3 text-base font-medium"
-        variant="secondary"
-        size="lg"
-      >
-        <QrCode className="size-5" />
-        Generate QR
-      </Button>
+      <QRScanner
+        trigger={
+          <Button
+            className="h-14 gap-3 text-base font-medium"
+            size="lg"
+          >
+            <Send className="size-5" />
+            Send Money
+          </Button>
+        }
+      />
+      <QRGenerator
+        trigger={
+          <Button
+            className="h-14 gap-3 text-base font-medium"
+            variant="secondary"
+            size="lg"
+          >
+            <QrCode className="size-5" />
+            Receive QR
+          </Button>
+        }
+      />
     </div>
   )
 }

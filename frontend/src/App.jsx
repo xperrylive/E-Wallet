@@ -174,17 +174,27 @@ function AppContent({ session }) {
     );
   }
 
+  const meta = session.user?.user_metadata || {};
+  const fullName = meta.full_name || meta.name || meta.email?.split('@')[0] || 'there';
+  const firstName = fullName.split(' ')[0];
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <main className="mx-auto max-w-2xl px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">My Wallet</h1>
-          <p className="mt-1 text-muted-foreground">Manage your funds and transactions</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              {greeting}, {firstName}! 👋
+            </h1>
+            <p className="mt-1 text-muted-foreground">Here&apos;s your wallet overview</p>
+          </div>
           <Button
             variant="outline"
             size="sm"
-            className="mt-4"
             onClick={() => supabase.auth.signOut()}
           >
             Sign Out

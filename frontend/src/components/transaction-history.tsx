@@ -3,37 +3,25 @@
 import useSWR from "swr"
 import { fetchTransactions, type Transaction } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, XCircle, History, PlusCircle } from "lucide-react"
 
 interface TransactionHistoryProps {
   token: string
 }
 
-function formatCurrency(amount: string, currency: string): string {
-  const value = parseFloat(amount)
-  const formatted = Math.abs(value).toLocaleString("en-MY", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${currency} ${formatted}`
+function formatAmount(amount: string, currency: string): string {
+  const value = Math.abs(parseFloat(amount))
+  return value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  const d = new Date(dateString)
+  const today = new Date()
+  const isToday = d.toDateString() === today.toDateString()
+  if (isToday) {
+    return d.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })
+  }
+  return d.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })
 }
 
 function TransactionLoadingSkeleton() {
@@ -43,17 +31,15 @@ function TransactionLoadingSkeleton() {
         <div className="h-5 w-40 animate-pulse rounded bg-muted" />
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-10 animate-pulse rounded-full bg-muted" />
-                <div className="space-y-2">
-                  <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                  <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                </div>
+            <div key={i} className="flex items-center gap-3 py-1">
+              <div className="size-10 shrink-0 animate-pulse rounded-full bg-muted" />
+              <div className="flex-1 space-y-2 min-w-0">
+                <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-20 animate-pulse rounded bg-muted" />
               </div>
-              <div className="h-5 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-5 w-16 animate-pulse rounded bg-muted shrink-0" />
             </div>
           ))}
         </div>
@@ -62,101 +48,85 @@ function TransactionLoadingSkeleton() {
   )
 }
 
-function StatusBadge({ status }: { status: Transaction["status"] }) {
-  const config = {
-    completed: {
-      icon: CheckCircle2,
-      label: "Completed",
-      className: "text-primary bg-primary/10",
-    },
-    pending: {
-      icon: Clock,
-      label: "Pending",
-      className: "text-yellow-500 bg-yellow-500/10",
-    },
-    failed: {
-      icon: XCircle,
-      label: "Failed",
-      className: "text-destructive bg-destructive/10",
-    },
-    reversed: {
-      icon: XCircle,
-      label: "Reversed",
-      className: "text-muted-foreground bg-muted",
-    },
+function StatusDot({ status }: { status: Transaction["status"] }) {
+  const colors = {
+    completed: "bg-emerald-500",
+    pending: "bg-yellow-500",
+    failed: "bg-destructive",
+    reversed: "bg-muted-foreground",
   }
-
-  const { icon: Icon, label, className } = config[status] ?? config.pending
-
+  const labels = { completed: "Completed", pending: "Pending", failed: "Failed", reversed: "Reversed" }
   return (
-    <div className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${className}`}>
-      <Icon className="size-3" />
-      {label}
-    </div>
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <span className={`inline-block size-1.5 rounded-full ${colors[status] ?? colors.pending}`} />
+      {labels[status] ?? "Pending"}
+    </span>
   )
 }
 
-function DirectionIndicator({ type }: { type: Transaction["type"] }) {
+function DirectionIcon({ type }: { type: Transaction["type"] }) {
   if (type === "topup") {
     return (
-      <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/10">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
         <PlusCircle className="size-5 text-emerald-500" />
       </div>
     )
   }
   if (type === "sent") {
     return (
-      <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
         <ArrowUpRight className="size-5 text-destructive" />
       </div>
     )
   }
   return (
-    <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
       <ArrowDownLeft className="size-5 text-primary" />
     </div>
   )
 }
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({ transaction }: { transaction: Transaction & { counterparty_display_name?: string } }) {
   const isTopup = transaction.type === "topup"
   const isSent = transaction.type === "sent"
 
-  const label = isTopup ? "Top Up" : isSent ? "Sent" : "Received"
-  const amountColor = isTopup
-    ? "text-emerald-500"
-    : isSent
-    ? "text-destructive"
-    : "text-primary"
-  const amountPrefix = isTopup ? "+" : isSent ? "-" : "+"
+  const amountColor = isTopup ? "text-emerald-500" : isSent ? "text-destructive" : "text-primary"
+  const amountPrefix = isTopup ? "+" : isSent ? "−" : "+"
+  const currency = transaction.currency ?? "MYR"
+
+  // Counterparty label: name > description > fallback
+  const counterpartyName = transaction.counterparty_display_name
+  const subLabel = isTopup
+    ? "Wallet top-up"
+    : counterpartyName && counterpartyName !== "Unknown"
+    ? counterpartyName
+    : transaction.description || (isSent ? "Sent transfer" : "Received transfer")
+
+  const mainLabel = isTopup ? "Top Up" : isSent ? "Sent" : "Received"
 
   return (
-    <TableRow>
-      <TableCell>
-        <div className="flex items-center gap-3">
-          <DirectionIndicator type={transaction.type} />
-          <div>
-            <p className="font-medium text-foreground">{label}</p>
-            <p className="text-sm text-muted-foreground">
-              {transaction.description || "No description"}
-            </p>
-          </div>
-        </div>
-      </TableCell>
-      <TableCell className="hidden sm:table-cell">
-        <span className="text-sm text-muted-foreground">
-          {formatDate(transaction.created_at)}
-        </span>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        <StatusBadge status={transaction.status} />
-      </TableCell>
-      <TableCell className="text-right">
-        <span className={`font-semibold ${amountColor}`}>
-          {amountPrefix}{formatCurrency(transaction.amount, transaction.currency)}
-        </span>
-      </TableCell>
-    </TableRow>
+    <div className="flex items-center gap-3 rounded-lg px-1 py-2.5 transition-colors hover:bg-muted/30">
+      <DirectionIcon type={transaction.type} />
+
+      {/* Name + sub — takes available space, truncates cleanly */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{mainLabel}</p>
+        <p className="truncate text-xs text-muted-foreground">{subLabel}</p>
+      </div>
+
+      {/* Date — fixed width, right-aligned */}
+      <div className="hidden shrink-0 text-right sm:block">
+        <p className="text-xs text-muted-foreground">{formatDate(transaction.created_at)}</p>
+        <StatusDot status={transaction.status} />
+      </div>
+
+      {/* Amount — fixed width, never wraps */}
+      <div className="shrink-0 text-right">
+        <p className={`text-sm font-semibold tabular-nums ${amountColor}`}>
+          {amountPrefix}{currency} {formatAmount(transaction.amount, currency)}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -166,9 +136,9 @@ function EmptyTransactions() {
       <div className="rounded-full bg-muted p-4">
         <History className="size-8 text-muted-foreground" />
       </div>
-      <h3 className="mt-4 text-lg font-semibold text-foreground">No transactions yet</h3>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Your transaction history will appear here once you start sending or receiving money.
+      <h3 className="mt-4 text-base font-semibold text-foreground">No transactions yet</h3>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        Your transaction history will appear here.
       </p>
     </div>
   )
@@ -178,15 +148,10 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
   const { data, error, isLoading } = useSWR(
     token ? ["transactions", token] : null,
     () => fetchTransactions(token),
-    {
-      revalidateOnFocus: false,
-      shouldRetryOnError: false,
-    }
+    { revalidateOnFocus: false, shouldRetryOnError: false }
   )
 
-  if (isLoading) {
-    return <TransactionLoadingSkeleton />
-  }
+  if (isLoading) return <TransactionLoadingSkeleton />
 
   if (error) {
     return (
@@ -198,7 +163,7 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Unable to load transactions. Please try again later.</p>
+          <p className="text-sm text-muted-foreground">Unable to load transactions.</p>
         </CardContent>
       </Card>
     )
@@ -208,7 +173,7 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
 
   return (
     <Card className="border-border bg-card">
-      <CardHeader>
+      <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <History className="size-5 text-muted-foreground" />
           Transaction History
@@ -218,21 +183,11 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
         {transactions.length === 0 ? (
           <EmptyTransactions />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Transaction</TableHead>
-                <TableHead className="hidden sm:table-cell">Date</TableHead>
-                <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((transaction) => (
-                <TransactionRow key={transaction.id} transaction={transaction} />
-              ))}
-            </TableBody>
-          </Table>
+          <div className="divide-y divide-border">
+            {transactions.map((transaction) => (
+              <TransactionRow key={transaction.id} transaction={transaction as any} />
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

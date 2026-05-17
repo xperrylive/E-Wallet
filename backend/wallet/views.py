@@ -254,8 +254,11 @@ class TransferView(APIView):
 
             return Response(txn_data, status=status.HTTP_201_CREATED)
 
-        except (InsufficientFundsError, InvalidRecipientError, DuplicateTransactionError):
-            raise  # Let DRF exception handler format these
+        except (InsufficientFundsError, InvalidRecipientError, DuplicateTransactionError) as e:
+            return Response(
+                {'error': str(e), 'code': type(e).__name__.upper()},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except ValueError as e:
             return Response(
                 {'error': str(e), 'code': 'VALIDATION_ERROR'},
@@ -308,7 +311,7 @@ class TransactionListView(APIView):
         total_pages = max(1, (total + per_page - 1) // per_page)
 
         offset = (page - 1) * per_page
-        transactions = queryset[offset:offset + per_page]
+        transactions = queryset.select_related('sender_wallet', 'recipient_wallet')[offset:offset + per_page]
 
         # Build response with sent/received perspective
         txn_list = []
@@ -324,10 +327,19 @@ class TransactionListView(APIView):
                 display_type = 'sent' if is_sender else 'received'
                 display_amount = f"{'-' if is_sender else ''}{txn.amount_cents / 100:.2f}"
 
+            # Resolve counterparty display name
+            if txn.transaction_type == 'topup':
+                counterparty_name = 'Top Up'
+            elif is_sender:
+                counterparty_name = txn.recipient_wallet.display_name or 'Unknown'
+            else:
+                counterparty_name = txn.sender_wallet.display_name or 'Unknown'
+
             txn_list.append({
                 'id': str(txn.id),
                 'type': display_type,
                 'counterparty_wallet_id': counterparty_id,
+                'counterparty_display_name': counterparty_name,
                 'amount': display_amount,
                 'amount_cents': txn.amount_cents if display_type == 'topup' else (-txn.amount_cents if is_sender else txn.amount_cents),
                 'currency': txn.currency,

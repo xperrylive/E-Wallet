@@ -267,8 +267,15 @@ function WalletBalance({
 
       <CardContent className="relative">
         <div className="flex items-baseline gap-2">
+          {/* Currency always visible */}
+          <span className="text-xl font-semibold text-muted-foreground">
+            {wallet.currency}
+          </span>
+          {/* Amount only gets blurred */}
           <span className={`text-4xl font-bold tracking-tight text-foreground transition-all duration-300 ${!visible ? "select-none blur-sm" : ""}`}>
-            {visible ? formatCurrency(wallet.balance, wallet.currency) : maskedBalance}
+            {visible
+              ? parseFloat(wallet.balance).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : "•••.••"}
           </span>
         </div>
 
@@ -291,10 +298,11 @@ function WalletBalance({
 }
 
 // ── Action Buttons ─────────────────────────────────────────────
-function ActionButtons({ walletId }: { walletId: string }) {
+function ActionButtons({ walletId, token }: { walletId: string; token: string }) {
   return (
     <div className="grid grid-cols-2 gap-4">
       <SendMoneyModal
+        token={token}
         trigger={
           <Button id="send-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" size="lg">
             <Send className="size-5" />
@@ -356,7 +364,7 @@ export function WalletDashboard({ token }: WalletDashboardProps) {
         token={token}
         onTopupSuccess={handleTopupSuccess}
       />
-      <ActionButtons walletId={wallet.id} />
+      <ActionButtons walletId={wallet.id} token={token} />
       <ActivitySparkline transactions={transactions} currentBalance={wallet.balance_cents} />
       <TransactionHistory token={token} />
     </div>

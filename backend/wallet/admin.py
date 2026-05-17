@@ -4,9 +4,9 @@ from .models import Wallet, Transaction, QRCode, Webhook, WebhookDelivery
 
 @admin.register(Wallet)
 class WalletAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user_id', 'balance_cents', 'currency', 'status', 'created_at']
+    list_display = ['id', 'user_id', 'display_name', 'balance_cents', 'currency', 'status', 'created_at']
     list_filter = ['status', 'currency']
-    search_fields = ['id', 'user_id']
+    search_fields = ['id', 'user_id', 'display_name']
     readonly_fields = ['id', 'created_at', 'updated_at']
 
 

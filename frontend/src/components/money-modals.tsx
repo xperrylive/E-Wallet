@@ -55,10 +55,10 @@ interface ScannedPayload {
 
 interface SendMoneyModalProps {
   trigger: React.ReactNode
-  walletId?: string
+  token?: string
 }
 
-function QRSendTab() {
+function QRSendTab({ token }: { token?: string }) {
   const [scanned, setScanned] = useState<ScannedPayload | null>(null)
   const [dynamicAmount, setDynamicAmount] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
@@ -89,8 +89,8 @@ function QRSendTab() {
     try {
       await payQR(scanned.qr_code_id, scanned.amountType === "dynamic" ? dynamicAmount : null, uuidv4())
       success("Payment Sent!", `Successfully paid ${scanned.merchantName}`)
-      mutate(["wallet", undefined])
-      mutate(["transactions", undefined])
+      mutate(["wallet", token])
+      mutate(["transactions", token])
       setScanned(null)
       setDynamicAmount("")
     } catch (err: any) {
@@ -272,7 +272,7 @@ function QRSendTab() {
   )
 }
 
-function AccountSendTab() {
+function AccountSendTab({ token }: { token?: string }) {
   const [recipientId, setRecipientId] = useState("")
   const [recipientName, setRecipientName] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
@@ -303,8 +303,8 @@ function AccountSendTab() {
       const name = recipientName || "recipient"
       setRecipientId(""); setRecipientName(null); setAmount(""); setDescription("")
       success("Transfer Successful!", `Sent MYR ${amount} to ${name}`)
-      mutate(["wallet", undefined])
-      mutate(["transactions", undefined])
+      mutate(["wallet", token])
+      mutate(["transactions", token])
     } catch (err: any) {
       toastError("Transfer Failed", err.response?.data?.error || err.message || "Unknown error")
     } finally {
@@ -381,7 +381,7 @@ function AccountSendTab() {
   )
 }
 
-export function SendMoneyModal({ trigger }: SendMoneyModalProps) {
+export function SendMoneyModal({ trigger, token }: SendMoneyModalProps) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<"qr" | "account">("qr")
 
@@ -422,7 +422,7 @@ export function SendMoneyModal({ trigger }: SendMoneyModalProps) {
           </ToggleGroupItem>
         </ToggleGroup>
 
-        {tab === "qr" ? <QRSendTab /> : <AccountSendTab />}
+        {tab === "qr" ? <QRSendTab token={token} /> : <AccountSendTab token={token} />}
       </DialogContent>
     </Dialog>
   )

@@ -124,13 +124,19 @@ class TransferService:
             txn.completed_at = timezone.now()
             txn.save(update_fields=['status', 'completed_at'])
 
-        # After commit, trigger async webhook notification
-        try:
-            from .tasks import send_webhook_notification
-            send_webhook_notification.delay(str(txn.id), 'transaction.completed')
-        except Exception:
-            # Don't fail the transfer if webhook dispatch fails (e.g. Redis not available)
-            pass
+        # After commit, trigger async webhook notification in a background thread
+        # so the HTTP response is never blocked (Celery/Redis may not be running in dev)
+        import threading
+
+        def _dispatch_webhook():
+            try:
+                from .tasks import send_webhook_notification
+                send_webhook_notification.delay(str(txn.id), 'transaction.completed')
+            except Exception:
+                pass  # Silently ignore if Redis/Celery unavailable
+
+        t = threading.Thread(target=_dispatch_webhook, daemon=True)
+        t.start()
 
         return txn
 

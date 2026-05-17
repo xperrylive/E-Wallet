@@ -47,6 +47,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000, // 15 s — prevents infinite spinner on hung requests
 });
 
 api.interceptors.request.use(async (config) => {
@@ -61,11 +62,22 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Redirect to login or handle unauthorized
+  async (error) => {
+    const originalRequest = error.config
+    // Auto-refresh expired Supabase token and retry once
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+      try {
+        const { data: { session } } = await supabase.auth.refreshSession()
+        if (session?.access_token) {
+          originalRequest.headers.Authorization = `Bearer ${session.access_token}`
+          return api(originalRequest)
+        }
+      } catch {
+        // refresh failed — user needs to log in again
+      }
     }
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
 );
 
@@ -158,6 +170,7 @@ export async function transferMoney(recipientWalletId: string, amount: string, d
     })
     return response.data
   } catch (err: any) {
+    console.error('[transferMoney] error:', err.response?.status, err.response?.data ?? err.message)
     throw new Error(extractApiError(err))
   }
 }

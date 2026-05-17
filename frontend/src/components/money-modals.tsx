@@ -312,9 +312,7 @@ function AccountSendTab({ token }: { token?: string }) {
     }
   }
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  const isValidUUID = UUID_RE.test(recipientId.trim())
-  const isValid = isValidUUID && parseFloat(amount) > 0 && !loading
+  const isValid = recipientId.trim() !== "" && parseFloat(amount) > 0 && !loading
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -336,13 +334,10 @@ function AccountSendTab({ token }: { token?: string }) {
           value={recipientId}
           onChange={(e) => { setRecipientId(e.target.value); setRecipientName(null) }}
           onBlur={handleWalletBlur}
-          className={`h-11 bg-input font-mono text-sm pr-8 ${recipientId && !isValidUUID ? "border-destructive" : "border-border"}`}
+          className="h-11 bg-input border-border font-mono text-sm pr-8"
         />
         {isLookingUp && <Loader2 className="absolute right-2 top-3 size-4 animate-spin text-muted-foreground" />}
         </div>
-        {recipientId && !isValidUUID && (
-          <p className="text-xs text-destructive">Invalid wallet ID format — must be a UUID (e.g. 550e8400-e29b-…)</p>
-        )}
       </div>
 
       <div className="space-y-2">

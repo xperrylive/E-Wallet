@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, XCircle, History } from "lucide-react"
+import { ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, XCircle, History, PlusCircle } from "lucide-react"
 
 interface TransactionHistoryProps {
   token: string
@@ -79,9 +79,14 @@ function StatusBadge({ status }: { status: Transaction["status"] }) {
       label: "Failed",
       className: "text-destructive bg-destructive/10",
     },
+    reversed: {
+      icon: XCircle,
+      label: "Reversed",
+      className: "text-muted-foreground bg-muted",
+    },
   }
 
-  const { icon: Icon, label, className } = config[status]
+  const { icon: Icon, label, className } = config[status] ?? config.pending
 
   return (
     <div className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${className}`}>
@@ -92,6 +97,13 @@ function StatusBadge({ status }: { status: Transaction["status"] }) {
 }
 
 function DirectionIndicator({ type }: { type: Transaction["type"] }) {
+  if (type === "topup") {
+    return (
+      <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/10">
+        <PlusCircle className="size-5 text-emerald-500" />
+      </div>
+    )
+  }
   if (type === "sent") {
     return (
       <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10">
@@ -99,7 +111,6 @@ function DirectionIndicator({ type }: { type: Transaction["type"] }) {
       </div>
     )
   }
-
   return (
     <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
       <ArrowDownLeft className="size-5 text-primary" />
@@ -108,7 +119,16 @@ function DirectionIndicator({ type }: { type: Transaction["type"] }) {
 }
 
 function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const isTopup = transaction.type === "topup"
   const isSent = transaction.type === "sent"
+
+  const label = isTopup ? "Top Up" : isSent ? "Sent" : "Received"
+  const amountColor = isTopup
+    ? "text-emerald-500"
+    : isSent
+    ? "text-destructive"
+    : "text-primary"
+  const amountPrefix = isTopup ? "+" : isSent ? "-" : "+"
 
   return (
     <TableRow>
@@ -116,9 +136,7 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
         <div className="flex items-center gap-3">
           <DirectionIndicator type={transaction.type} />
           <div>
-            <p className="font-medium text-foreground">
-              {isSent ? "Sent" : "Received"}
-            </p>
+            <p className="font-medium text-foreground">{label}</p>
             <p className="text-sm text-muted-foreground">
               {transaction.description || "No description"}
             </p>
@@ -134,8 +152,8 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
         <StatusBadge status={transaction.status} />
       </TableCell>
       <TableCell className="text-right">
-        <span className={`font-semibold ${isSent ? "text-destructive" : "text-primary"}`}>
-          {isSent ? "-" : "+"}{formatCurrency(transaction.amount, transaction.currency)}
+        <span className={`font-semibold ${amountColor}`}>
+          {amountPrefix}{formatCurrency(transaction.amount, transaction.currency)}
         </span>
       </TableCell>
     </TableRow>

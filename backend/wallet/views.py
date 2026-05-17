@@ -257,12 +257,20 @@ class TransactionListView(APIView):
             is_sender = str(txn.sender_wallet_id) == str(wallet.id)
             counterparty_id = str(txn.recipient_wallet_id) if is_sender else str(txn.sender_wallet_id)
 
+            # Determine display type: topup is a special case (sender == recipient)
+            if txn.transaction_type == 'topup':
+                display_type = 'topup'
+                display_amount = f"{txn.amount_cents / 100:.2f}"  # always positive
+            else:
+                display_type = 'sent' if is_sender else 'received'
+                display_amount = f"{'-' if is_sender else ''}{txn.amount_cents / 100:.2f}"
+
             txn_list.append({
                 'id': str(txn.id),
-                'type': 'sent' if is_sender else 'received',
+                'type': display_type,
                 'counterparty_wallet_id': counterparty_id,
-                'amount': f"{'-' if is_sender else ''}{txn.amount_cents / 100:.2f}",
-                'amount_cents': -txn.amount_cents if is_sender else txn.amount_cents,
+                'amount': display_amount,
+                'amount_cents': txn.amount_cents if display_type == 'topup' else (-txn.amount_cents if is_sender else txn.amount_cents),
                 'currency': txn.currency,
                 'status': txn.status,
                 'transaction_type': txn.transaction_type,

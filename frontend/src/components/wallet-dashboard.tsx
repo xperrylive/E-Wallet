@@ -111,73 +111,8 @@ function WalletError({ message }: { message: string }) {
   )
 }
 
-function WalletBalance({ wallet, visible, onToggle }: { wallet: Wallet; visible: boolean; onToggle: () => void }) {
-  const maskedBalance = `${wallet.currency} •••.••`
-
-  return (
-    <Card className="relative overflow-hidden border-border bg-card">
-      {/* Decorative orbs */}
-      <div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary/5" />
-      <div className="absolute -right-4 top-8 size-16 rounded-full bg-primary/10" />
-
-      <CardHeader className="relative pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <WalletIcon className="size-5 text-primary" />
-            </div>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
-          </div>
-
-          {/* Visibility toggle */}
-          <button
-            id="balance-visibility-toggle"
-            onClick={onToggle}
-            className="group flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label={visible ? "Hide balance" : "Show balance"}
-          >
-            {visible ? (
-              <Eye className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-            ) : (
-              <EyeOff className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-            )}
-          </button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="relative">
-        <div className="flex items-baseline gap-2">
-          <span
-            className={`text-4xl font-bold tracking-tight text-foreground transition-all duration-300 ${
-              !visible ? "select-none blur-sm" : ""
-            }`}
-          >
-            {visible ? formatCurrency(wallet.balance, wallet.currency) : maskedBalance}
-          </span>
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-            <TrendingUp className="size-3" />
-            Active
-          </div>
-          <span className="text-xs text-muted-foreground">
-            Last updated:{" "}
-            {new Date(wallet.updated_at).toLocaleDateString("en-MY", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function TopupModal({ onSuccess }: { onSuccess: () => void }) {
+// ── Topup Modal ────────────────────────────────────────────────
+function TopupModal({ token, onSuccess }: { token: string; onSuccess: () => void }) {
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
@@ -191,9 +126,10 @@ function TopupModal({ onSuccess }: { onSuccess: () => void }) {
       await topupWallet(amount, "Top-up (testing)")
       setOpen(false)
       setAmount("")
+      // Fix: revalidate exact SWR keys used in this dashboard
+      mutate(["wallet", token])
+      mutate(["transactions", token])
       onSuccess()
-      mutate(["wallet", undefined])
-      mutate(["transactions", undefined])
     } catch (err: any) {
       alert("Top-up failed: " + (err.response?.data?.error || err.message))
     } finally {
@@ -204,14 +140,14 @@ function TopupModal({ onSuccess }: { onSuccess: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
+        <button
           id="topup-btn"
-          variant="outline"
-          className="h-12 w-full gap-2 border-dashed border-primary/40 text-primary hover:border-primary hover:bg-primary/5"
+          className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Top up balance"
         >
-          <Plus className="size-4" />
-          Top Up Balance (Testing)
-        </Button>
+          <Plus className="size-3" />
+          Top Up
+        </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
@@ -227,7 +163,6 @@ function TopupModal({ onSuccess }: { onSuccess: () => void }) {
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Quick-amount chips */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-foreground">Quick Select</Label>
             <div className="grid grid-cols-4 gap-2">
@@ -247,7 +182,6 @@ function TopupModal({ onSuccess }: { onSuccess: () => void }) {
             </div>
           </div>
 
-          {/* Custom amount */}
           <div className="space-y-2">
             <Label htmlFor="topup-amount" className="text-sm font-medium text-foreground">
               Or enter custom amount
@@ -284,43 +218,111 @@ function TopupModal({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
-function ActionButtons({ walletId, onTopupSuccess }: { walletId: string; onTopupSuccess: () => void }) {
+// ── Balance Card ───────────────────────────────────────────────
+function WalletBalance({
+  wallet,
+  visible,
+  onToggle,
+  token,
+  onTopupSuccess,
+}: {
+  wallet: Wallet
+  visible: boolean
+  onToggle: () => void
+  token: string
+  onTopupSuccess: () => void
+}) {
+  const maskedBalance = `${wallet.currency} •••.••`
+
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-4">
-        <SendMoneyModal
-          trigger={
-            <Button id="send-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" size="lg">
-              <Send className="size-5" />
-              Send Money
-            </Button>
-          }
-        />
-        <ReceiveMoneyModal
-          walletId={walletId}
-          trigger={
-            <Button id="receive-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" variant="secondary" size="lg">
-              <Download className="size-5" />
-              Receive Money
-            </Button>
-          }
-        />
-      </div>
-      <TopupModal onSuccess={onTopupSuccess} />
+    <Card className="relative overflow-hidden border-border bg-card">
+      <div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary/5" />
+      <div className="absolute -right-4 top-8 size-16 rounded-full bg-primary/10" />
+
+      <CardHeader className="relative pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <WalletIcon className="size-5 text-primary" />
+            </div>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
+          </div>
+          <button
+            id="balance-visibility-toggle"
+            onClick={onToggle}
+            className="group flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={visible ? "Hide balance" : "Show balance"}
+          >
+            {visible ? (
+              <Eye className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+            ) : (
+              <EyeOff className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+            )}
+          </button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="relative">
+        <div className="flex items-baseline gap-2">
+          <span className={`text-4xl font-bold tracking-tight text-foreground transition-all duration-300 ${!visible ? "select-none blur-sm" : ""}`}>
+            {visible ? formatCurrency(wallet.balance, wallet.currency) : maskedBalance}
+          </span>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+              <TrendingUp className="size-3" />
+              Active
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Updated {new Date(wallet.updated_at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
+          {/* Top Up button lives inside the balance card */}
+          <TopupModal token={token} onSuccess={onTopupSuccess} />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Action Buttons ─────────────────────────────────────────────
+function ActionButtons({ walletId }: { walletId: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <SendMoneyModal
+        trigger={
+          <Button id="send-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" size="lg">
+            <Send className="size-5" />
+            Send Money
+          </Button>
+        }
+      />
+      <ReceiveMoneyModal
+        walletId={walletId}
+        trigger={
+          <Button id="receive-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" variant="secondary" size="lg">
+            <Download className="size-5" />
+            Receive Money
+          </Button>
+        }
+      />
     </div>
   )
 }
 
+// ── Main Dashboard ─────────────────────────────────────────────
 export function WalletDashboard({ token }: WalletDashboardProps) {
   const [balanceVisible, setBalanceVisible] = useState(true)
 
-  const { data: wallet, error, isLoading } = useSWR(
+  const { data: wallet, error, isLoading, mutate: revalidateWallet } = useSWR(
     token ? ["wallet", token] : null,
     () => fetchWallet(token),
     { revalidateOnFocus: false, shouldRetryOnError: false }
   )
 
-  const { data: txData } = useSWR(
+  const { data: txData, mutate: revalidateTxns } = useSWR(
     token && wallet ? ["transactions", token] : null,
     () => fetchTransactions(token),
     { revalidateOnFocus: false, shouldRetryOnError: false }
@@ -337,24 +339,22 @@ export function WalletDashboard({ token }: WalletDashboardProps) {
 
   const transactions = txData?.transactions || []
 
+  const handleTopupSuccess = () => {
+    revalidateWallet()    // revalidates ["wallet", token] directly
+    revalidateTxns()      // revalidates ["transactions", token] directly
+  }
+
   return (
     <div className="space-y-6">
       <WalletBalance
         wallet={wallet}
         visible={balanceVisible}
         onToggle={() => setBalanceVisible((v) => !v)}
+        token={token}
+        onTopupSuccess={handleTopupSuccess}
       />
-      <ActionButtons
-        walletId={wallet.id}
-        onTopupSuccess={() => {
-          mutate(["wallet", undefined])
-          mutate(["transactions", undefined])
-        }}
-      />
-      <ActivitySparkline
-        transactions={transactions}
-        currentBalance={wallet.balance_cents}
-      />
+      <ActionButtons walletId={wallet.id} />
+      <ActivitySparkline transactions={transactions} currentBalance={wallet.balance_cents} />
       <TransactionHistory token={token} />
     </div>
   )

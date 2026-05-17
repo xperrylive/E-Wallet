@@ -168,10 +168,10 @@ function QRSendTab() {
       {/* QR viewfinder */}
       <div
         className="relative mx-auto aspect-square w-full max-w-64 cursor-pointer overflow-hidden rounded-2xl bg-zinc-900"
-        onClick={() => handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Ahmad bin Abdullah", amountType: "dynamic", description: "Personal transfer" })}
+        onClick={() => handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Test User", amountType: "dynamic", description: "Personal transfer" })}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => e.key === "Enter" && handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Ahmad bin Abdullah", amountType: "dynamic", description: "Personal transfer" })}
+        onKeyDown={(e) => e.key === "Enter" && handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Test User", amountType: "dynamic", description: "Personal transfer" })}
         aria-label="Tap to simulate scan"
       >
         <div className="absolute left-4 top-4 h-7 w-7 rounded-tl-lg border-l-2 border-t-2 border-primary" />
@@ -188,34 +188,91 @@ function QRSendTab() {
         </div>
       </div>
 
-      <Input
-        placeholder="Or paste QR Code ID here..."
-        onChange={(e) => {
-          if (e.target.value.length > 5) {
-            let qrId = e.target.value
+      {/* Paste input — parses real ewallet:// or bare QR IDs */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">Or paste QR Code / payment link</p>
+        <Input
+          placeholder="ewallet://pay?qr_id=QR-20250517-ABC123 or bare QR ID"
+          className="font-mono text-xs"
+          onChange={(e) => {
+            const raw = e.target.value.trim()
+            if (!raw || raw.length < 5) return
+            let qrId = raw
             let amountStr: string | undefined
             let type: "static" | "dynamic" = "dynamic"
-            if (qrId.includes("qr_id=")) {
+            if (raw.startsWith("ewallet://")) {
               try {
-                const url = new URL(qrId)
-                qrId = url.searchParams.get("qr_id") || qrId
+                // Parse as URL: ewallet://pay?qr_id=...&amount=...
+                const url = new URL(raw.replace("ewallet://", "https://ewallet/"))
+                qrId = url.searchParams.get("qr_id") || raw
                 const amt = url.searchParams.get("amount")
-                if (amt && amt !== "0") { amountStr = (parseInt(amt) / 100).toFixed(2); type = "static" }
+                if (amt && amt !== "0") {
+                  amountStr = (parseInt(amt) / 100).toFixed(2)
+                  type = "static"
+                }
               } catch {}
             }
-            handleScan({ qr_code_id: qrId, merchantName: "Test Merchant", amountType: type, amount: amountStr, description: "Scanned Payment" })
-          }
-        }}
-      />
+            handleScan({
+              qr_code_id: qrId,
+              merchantName: "Merchant",   // will be resolved server-side on confirm
+              amountType: type,
+              amount: amountStr,
+              description: "Scanned Payment",
+            })
+          }}
+        />
+      </div>
 
-      <Button
-        variant="secondary"
-        className="h-11 w-full gap-2"
-        onClick={() => handleScan({ qr_code_id: "QR-TEST", merchantName: "Coffee Corner Sdn Bhd", amountType: "static", amount: "15.90", description: "Order #1234" })}
-      >
+      {/* Upload from gallery — real QR decoding with jsQR */}
+      <label className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80">
         <Upload className="size-4" />
         Upload QR from Gallery
-      </Button>
+        <input
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            try {
+              const img = new Image()
+              img.src = URL.createObjectURL(file)
+              await new Promise((res) => { img.onload = res })
+              const canvas = document.createElement("canvas")
+              canvas.width = img.width
+              canvas.height = img.height
+              const ctx = canvas.getContext("2d")!
+              ctx.drawImage(img, 0, 0)
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+              // Dynamically import jsQR
+              const { default: jsQR } = await import("jsqr")
+              const result = jsQR(imageData.data, imageData.width, imageData.height)
+              if (!result) {
+                alert("No QR code found in this image. Make sure the QR code is clear and well-lit.")
+                return
+              }
+              const raw = result.data
+              let qrId = raw
+              let amountStr: string | undefined
+              let type: "static" | "dynamic" = "dynamic"
+              if (raw.startsWith("ewallet://")) {
+                try {
+                  const url = new URL(raw.replace("ewallet://", "https://ewallet/"))
+                  qrId = url.searchParams.get("qr_id") || raw
+                  const amt = url.searchParams.get("amount")
+                  if (amt && amt !== "0") {
+                    amountStr = (parseInt(amt) / 100).toFixed(2)
+                    type = "static"
+                  }
+                } catch {}
+              }
+              handleScan({ qr_code_id: qrId, merchantName: "Merchant", amountType: type, amount: amountStr, description: "Scanned from Image" })
+            } catch (err) {
+              alert("Could not read QR code from image.")
+            }
+          }}
+        />
+      </label>
     </div>
   )
 }

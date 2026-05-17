@@ -20,7 +20,7 @@ export interface WalletError {
 
 export interface Transaction {
   id: string
-  type: "sent" | "received"
+  type: "sent" | "received" | "topup"
   counterparty_wallet_id: string
   amount: string
   amount_cents: number

@@ -300,11 +300,14 @@ class QRCodeService:
                 qr_code.status = 'used'
             qr_code.save(update_fields=['current_uses', 'status'])
 
-        # Trigger webhook
-        try:
-            from .tasks import send_webhook_notification
-            send_webhook_notification.delay(str(txn.id), 'qr_code.paid')
-        except Exception:
-            pass
+        # Trigger webhook in background thread (non-blocking — Redis may not be running)
+        import threading
+        def _dispatch():
+            try:
+                from .tasks import send_webhook_notification
+                send_webhook_notification.delay(str(txn.id), 'qr_code.paid')
+            except Exception:
+                pass
+        threading.Thread(target=_dispatch, daemon=True).start()
 
         return txn, qr_code

@@ -2,13 +2,22 @@
 
 import { mutate } from "swr"
 import useSWR from "swr"
-import { fetchWallet, createWallet, type Wallet } from "@/lib/api"
+import { useState } from "react"
+import { fetchWallet, fetchTransactions, createWallet, type Wallet } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Wallet as WalletIcon, Send, Download, AlertCircle, TrendingUp } from "lucide-react"
+import {
+  Wallet as WalletIcon,
+  Send,
+  Download,
+  AlertCircle,
+  TrendingUp,
+  Eye,
+  EyeOff,
+} from "lucide-react"
 import { TransactionHistory } from "@/components/transaction-history"
+import { ActivitySparkline } from "@/components/activity-sparkline"
 import { SendMoneyModal, ReceiveMoneyModal } from "@/components/money-modals"
-import { useState } from "react"
 
 interface WalletDashboardProps {
   token: string
@@ -93,32 +102,59 @@ function WalletError({ message }: { message: string }) {
   )
 }
 
-function WalletBalance({ wallet }: { wallet: Wallet }) {
+function WalletBalance({ wallet, visible, onToggle }: { wallet: Wallet; visible: boolean; onToggle: () => void }) {
+  const maskedBalance = `${wallet.currency} •••.••`
+
   return (
     <Card className="relative overflow-hidden border-border bg-card">
+      {/* Decorative orbs */}
       <div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary/5" />
       <div className="absolute -right-4 top-8 size-16 rounded-full bg-primary/10" />
+
       <CardHeader className="relative pb-2">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <WalletIcon className="size-5 text-primary" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <WalletIcon className="size-5 text-primary" />
+            </div>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
           </div>
-          <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
+
+          {/* Visibility toggle */}
+          <button
+            id="balance-visibility-toggle"
+            onClick={onToggle}
+            className="group flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={visible ? "Hide balance" : "Show balance"}
+          >
+            {visible ? (
+              <Eye className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+            ) : (
+              <EyeOff className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+            )}
+          </button>
         </div>
       </CardHeader>
+
       <CardContent className="relative">
         <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-bold tracking-tight text-foreground">
-            {formatCurrency(wallet.balance, wallet.currency)}
+          <span
+            className={`text-4xl font-bold tracking-tight text-foreground transition-all duration-300 ${
+              !visible ? "select-none blur-sm" : ""
+            }`}
+          >
+            {visible ? formatCurrency(wallet.balance, wallet.currency) : maskedBalance}
           </span>
         </div>
+
         <div className="mt-4 flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
             <TrendingUp className="size-3" />
             Active
           </div>
           <span className="text-xs text-muted-foreground">
-            Last updated: {new Date(wallet.updated_at).toLocaleDateString("en-MY", {
+            Last updated:{" "}
+            {new Date(wallet.updated_at).toLocaleDateString("en-MY", {
               day: "numeric",
               month: "short",
               year: "numeric",
@@ -166,34 +202,43 @@ function ActionButtons({ walletId }: { walletId: string }) {
 }
 
 export function WalletDashboard({ token }: WalletDashboardProps) {
+  const [balanceVisible, setBalanceVisible] = useState(true)
+
   const { data: wallet, error, isLoading } = useSWR(
     token ? ["wallet", token] : null,
     () => fetchWallet(token),
-    {
-      revalidateOnFocus: false,
-      shouldRetryOnError: false,
-    }
+    { revalidateOnFocus: false, shouldRetryOnError: false }
   )
 
-  if (isLoading) {
-    return <WalletLoadingSkeleton />
-  }
+  const { data: txData } = useSWR(
+    token && wallet ? ["transactions", token] : null,
+    () => fetchTransactions(token),
+    { revalidateOnFocus: false, shouldRetryOnError: false }
+  )
+
+  if (isLoading) return <WalletLoadingSkeleton />
 
   if (error) {
-    if (error.message === "WALLET_NOT_FOUND") {
-      return <WalletNotFound />
-    }
+    if (error.message === "WALLET_NOT_FOUND") return <WalletNotFound />
     return <WalletError message={`Unable to load wallet. (${error.message})`} />
   }
 
-  if (!wallet) {
-    return <WalletNotFound />
-  }
+  if (!wallet) return <WalletNotFound />
+
+  const transactions = txData?.transactions || []
 
   return (
     <div className="space-y-6">
-      <WalletBalance wallet={wallet} />
+      <WalletBalance
+        wallet={wallet}
+        visible={balanceVisible}
+        onToggle={() => setBalanceVisible((v) => !v)}
+      />
       <ActionButtons walletId={wallet.id} />
+      <ActivitySparkline
+        transactions={transactions}
+        currentBalance={wallet.balance_cents}
+      />
       <TransactionHistory token={token} />
     </div>
   )

@@ -1,9 +1,7 @@
-"use client"
-
 import { mutate } from "swr"
 import useSWR from "swr"
 import { useState } from "react"
-import { fetchWallet, fetchTransactions, createWallet, type Wallet } from "@/lib/api"
+import { fetchWallet, fetchTransactions, createWallet, topupWallet, type Wallet } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,10 +12,21 @@ import {
   TrendingUp,
   Eye,
   EyeOff,
+  Plus,
 } from "lucide-react"
 import { TransactionHistory } from "@/components/transaction-history"
 import { ActivitySparkline } from "@/components/activity-sparkline"
 import { SendMoneyModal, ReceiveMoneyModal } from "@/components/money-modals"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface WalletDashboardProps {
   token: string
@@ -168,35 +177,136 @@ function WalletBalance({ wallet, visible, onToggle }: { wallet: Wallet; visible:
   )
 }
 
-function ActionButtons({ walletId }: { walletId: string }) {
+function TopupModal({ onSuccess }: { onSuccess: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const presets = ["10", "50", "100", "500"]
+
+  const handleTopup = async () => {
+    if (!amount || parseFloat(amount) <= 0) return
+    setLoading(true)
+    try {
+      await topupWallet(amount, "Top-up (testing)")
+      setOpen(false)
+      setAmount("")
+      onSuccess()
+      mutate(["wallet", undefined])
+      mutate(["transactions", undefined])
+    } catch (err: any) {
+      alert("Top-up failed: " + (err.response?.data?.error || err.message))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <SendMoneyModal
-        trigger={
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          id="topup-btn"
+          variant="outline"
+          className="h-12 w-full gap-2 border-dashed border-primary/40 text-primary hover:border-primary hover:bg-primary/5"
+        >
+          <Plus className="size-4" />
+          Top Up Balance (Testing)
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <Plus className="size-5 text-primary" />
+            </div>
+            Top Up Balance
+          </DialogTitle>
+          <DialogDescription>
+            Add test funds to your wallet for development purposes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* Quick-amount chips */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-foreground">Quick Select</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {presets.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setAmount(p)}
+                  className={`rounded-lg border py-2 text-sm font-semibold transition-colors ${
+                    amount === p
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted/30 text-foreground hover:border-primary/50 hover:bg-primary/5"
+                  }`}
+                >
+                  RM {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom amount */}
+          <div className="space-y-2">
+            <Label htmlFor="topup-amount" className="text-sm font-medium text-foreground">
+              Or enter custom amount
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">RM</span>
+              <Input
+                id="topup-amount"
+                type="number"
+                placeholder="0.00"
+                min="0.01"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-12 pl-10 text-lg font-medium"
+              />
+            </div>
+          </div>
+
           <Button
-            id="send-money-btn"
-            className="h-16 flex-col gap-1.5 text-sm font-medium"
-            size="lg"
+            className="h-12 w-full gap-2 text-base font-medium"
+            disabled={!amount || parseFloat(amount) <= 0 || loading}
+            onClick={handleTopup}
           >
-            <Send className="size-5" />
-            Send Money
+            {loading ? (
+              <><div className="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> Adding funds...</>
+            ) : (
+              <><Plus className="size-4" /> Add RM {amount || "0.00"}</>
+            )}
           </Button>
-        }
-      />
-      <ReceiveMoneyModal
-        walletId={walletId}
-        trigger={
-          <Button
-            id="receive-money-btn"
-            className="h-16 flex-col gap-1.5 text-sm font-medium"
-            variant="secondary"
-            size="lg"
-          >
-            <Download className="size-5" />
-            Receive Money
-          </Button>
-        }
-      />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ActionButtons({ walletId, onTopupSuccess }: { walletId: string; onTopupSuccess: () => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-4">
+        <SendMoneyModal
+          trigger={
+            <Button id="send-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" size="lg">
+              <Send className="size-5" />
+              Send Money
+            </Button>
+          }
+        />
+        <ReceiveMoneyModal
+          walletId={walletId}
+          trigger={
+            <Button id="receive-money-btn" className="h-16 flex-col gap-1.5 text-sm font-medium" variant="secondary" size="lg">
+              <Download className="size-5" />
+              Receive Money
+            </Button>
+          }
+        />
+      </div>
+      <TopupModal onSuccess={onTopupSuccess} />
     </div>
   )
 }
@@ -234,7 +344,13 @@ export function WalletDashboard({ token }: WalletDashboardProps) {
         visible={balanceVisible}
         onToggle={() => setBalanceVisible((v) => !v)}
       />
-      <ActionButtons walletId={wallet.id} />
+      <ActionButtons
+        walletId={wallet.id}
+        onTopupSuccess={() => {
+          mutate(["wallet", undefined])
+          mutate(["transactions", undefined])
+        }}
+      />
       <ActivitySparkline
         transactions={transactions}
         currentBalance={wallet.balance_cents}

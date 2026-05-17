@@ -12,6 +12,7 @@ urlpatterns = [
     # Wallets
     path('wallets/me/', views.WalletDetailView.as_view(), name='wallet-detail'),
     path('wallets/create/', views.WalletCreateView.as_view(), name='wallet-create'),
+    path('wallets/topup/', views.WalletTopupView.as_view(), name='wallet-topup'),
 
     # Transactions
     path('transactions/transfer/', views.TransferView.as_view(), name='transfer'),

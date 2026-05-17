@@ -370,6 +370,8 @@ interface QRFormData {
 function QRReceiveTab() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
+  const [qrDataString, setQrDataString] = useState<string>("")
+  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<QRFormData>({
     qrType: "static",
@@ -394,6 +396,7 @@ function QRReceiveTab() {
         minutes
       )
       setQrImageUrl(res.qr_image_url)
+      setQrDataString(res.qr_data || "")
       setShowSuccess(true)
     } catch (err: any) {
       alert("Failed to generate QR: " + (err.response?.data?.error || err.message || err))
@@ -402,9 +405,15 @@ function QRReceiveTab() {
     }
   }
 
+  const handleCopyData = async () => {
+    await navigator.clipboard.writeText(qrDataString)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   if (showSuccess) {
     return (
-      <div className="flex flex-col items-center space-y-6">
+      <div className="flex flex-col items-center space-y-5">
         <div className="rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border">
           {qrImageUrl ? (
             <img src={qrImageUrl} alt="QR Code" className="size-48" />
@@ -428,13 +437,30 @@ function QRReceiveTab() {
             Expires in {formData.expiration === "15min" ? "15 minutes" : formData.expiration === "1hour" ? "1 hour" : "24 hours"}
           </p>
         </div>
+
+        {/* QR Data string — for testing between two accounts */}
+        {qrDataString && (
+          <div className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary/70">
+              📋 Copy for Account B to pay (testing)
+            </p>
+            <p className="mb-2 break-all font-mono text-xs text-foreground">{qrDataString}</p>
+            <button
+              onClick={handleCopyData}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/10 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+            >
+              {copied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
+            </button>
+          </div>
+        )}
+
         <div className="grid w-full grid-cols-2 gap-3">
-          <Button variant="secondary" className="h-12 gap-2" onClick={async () => {
-            if (navigator.share) { try { await navigator.share({ title: "Payment QR Code", text: formData.description || "Scan to pay" }) } catch {} }
+          <Button variant="secondary" className="h-11 gap-2" onClick={async () => {
+            if (navigator.share) { try { await navigator.share({ title: "Payment QR Code", text: qrDataString }) } catch {} }
           }}>
             <Share2 className="size-4" /> Share
           </Button>
-          <Button variant="outline" className="h-12 gap-2" onClick={() => { setShowSuccess(false); setQrImageUrl(null) }}>
+          <Button variant="outline" className="h-11 gap-2" onClick={() => { setShowSuccess(false); setQrImageUrl(null); setQrDataString("") }}>
             <X className="size-4" /> New QR
           </Button>
         </div>

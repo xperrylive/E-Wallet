@@ -105,6 +105,59 @@ class WalletCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class WalletTopupView(APIView):
+    """POST /api/wallets/topup/ - Add funds (dev/testing only)."""
+
+    def post(self, request):
+        from decimal import Decimal
+        from django.utils import timezone
+
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        wallet = get_user_wallet(request)
+        if not wallet:
+            return Response({'error': 'Wallet not found', 'code': 'WALLET_NOT_FOUND'}, status=status.HTTP_404_NOT_FOUND)
+
+        amount_str = request.data.get('amount', '0')
+        try:
+            amount_decimal = Decimal(str(amount_str))
+            if amount_decimal <= 0:
+                raise ValueError()
+            amount_cents = int(amount_decimal * 100)
+            if amount_cents > 1_000_000:  # max RM 10,000
+                return Response({'error': 'Maximum top-up is RM 10,000.00'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'error': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+
+        import uuid as _uuid
+        # Record a self-referencing topup transaction (sender = recipient = own wallet)
+        # We create the transaction directly without going through TransferService
+        # to avoid "cannot transfer to same wallet" restriction
+        txn = Transaction.objects.create(
+            sender_wallet=wallet,
+            recipient_wallet=wallet,
+            amount_cents=amount_cents,
+            currency='MYR',
+            status='completed',
+            transaction_type='topup',
+            description=request.data.get('description', 'Top-up (testing)'),
+            idempotency_key=str(_uuid.uuid4()),
+            completed_at=timezone.now(),
+        )
+
+        wallet.balance_cents += amount_cents
+        wallet.save(update_fields=['balance_cents', 'updated_at'])
+
+        serializer = WalletSerializer(wallet)
+        return Response({
+            'wallet': serializer.data,
+            'transaction_id': str(txn.id),
+            'amount_added': f'{amount_decimal:.2f}',
+        }, status=status.HTTP_200_OK)
+
+
 # ──────────────────────────────────────────────────────────────
 # Transaction Views
 # ──────────────────────────────────────────────────────────────

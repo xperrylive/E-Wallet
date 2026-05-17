@@ -94,6 +94,11 @@ export async function createWallet(currency: string = 'MYR'): Promise<Wallet> {
   return response.data;
 }
 
+export async function topupWallet(amount: string, description?: string): Promise<{ wallet: Wallet; transaction_id: string; amount_added: string }> {
+  const response = await api.post('/wallets/topup/', { amount, description: description || 'Top-up (testing)' });
+  return response.data;
+}
+
 export async function fetchTransactions(token?: string, page: number = 1): Promise<TransactionsResponse> {
   try {
     const headers = token ? { Authorization: `Bearer ${token}` } : {};

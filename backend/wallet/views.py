@@ -225,9 +225,6 @@ class TransferView(APIView):
     """POST /api/transactions/transfer - Execute wallet-to-wallet transfer."""
 
     def post(self, request):
-        serializer = TransferRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
         sender_wallet = get_user_wallet(request)
         if not sender_wallet:
             return Response(
@@ -236,6 +233,16 @@ class TransferView(APIView):
             )
 
         try:
+            serializer = TransferRequestSerializer(data=request.data)
+            if not serializer.is_valid():
+                # Return the first validation error as a clean message
+                first_field = next(iter(serializer.errors))
+                first_msg = serializer.errors[first_field][0]
+                return Response(
+                    {'error': f"{first_field}: {first_msg}", 'code': 'VALIDATION_ERROR'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             txn = TransferService.execute_transfer(
                 sender_wallet_id=sender_wallet.id,
                 recipient_wallet_id=serializer.validated_data['recipient_wallet_id'],
@@ -255,14 +262,18 @@ class TransferView(APIView):
             return Response(txn_data, status=status.HTTP_201_CREATED)
 
         except (InsufficientFundsError, InvalidRecipientError, DuplicateTransactionError) as e:
-            return Response(
-                {'error': str(e), 'code': type(e).__name__.upper()},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # These are APIException subclasses — return their pre-built detail directly
+            return Response(e.detail, status=e.status_code)
         except ValueError as e:
             return Response(
                 {'error': str(e), 'code': 'VALIDATION_ERROR'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Unexpected transfer error: {e}", exc_info=True)
+            return Response(
+                {'error': 'An unexpected error occurred. Please try again.', 'code': 'SERVER_ERROR'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

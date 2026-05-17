@@ -94,7 +94,7 @@ function QRSendTab({ token }: { token?: string }) {
       setScanned(null)
       setDynamicAmount("")
     } catch (err: any) {
-      toastError("Payment Failed", err.response?.data?.error || err.message || "Unknown error")
+      toastError("Payment Failed", err.message || "Unknown error")
     } finally {
       setIsConfirming(false)
     }
@@ -306,7 +306,7 @@ function AccountSendTab({ token }: { token?: string }) {
       mutate(["wallet", token])
       mutate(["transactions", token])
     } catch (err: any) {
-      toastError("Transfer Failed", err.response?.data?.error || err.message || "Unknown error")
+      toastError("Transfer Failed", err.message || "Unknown error")
     } finally {
       setLoading(false)
     }

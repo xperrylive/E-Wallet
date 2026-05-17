@@ -132,14 +132,34 @@ export async function fetchTransactions(token?: string, page: number = 1): Promi
   }
 }
 
+export function extractApiError(err: any): string {
+  const data = err?.response?.data
+  if (!data) return err?.message || 'Network error — is the server running?'
+  if (typeof data.error === 'string') return data.error
+  if (data.non_field_errors) return data.non_field_errors[0]
+  if (typeof data.detail === 'string') return data.detail
+  if (typeof data.detail === 'object' && data.detail !== null) {
+    const d: any = data.detail
+    if (typeof d.error === 'string') return d.error
+    return JSON.stringify(d)
+  }
+  const firstKey = Object.keys(data)[0]
+  if (firstKey && Array.isArray(data[firstKey])) return `${firstKey}: ${data[firstKey][0]}`
+  return JSON.stringify(data)
+}
+
 export async function transferMoney(recipientWalletId: string, amount: string, description: string, idempotencyKey: string) {
-  const response = await api.post('/transactions/transfer/', {
-    recipient_wallet_id: recipientWalletId,
-    amount,
-    description,
-    idempotency_key: idempotencyKey,
-  });
-  return response.data;
+  try {
+    const response = await api.post('/transactions/transfer/', {
+      recipient_wallet_id: recipientWalletId,
+      amount,
+      description,
+      idempotency_key: idempotencyKey,
+    })
+    return response.data
+  } catch (err: any) {
+    throw new Error(extractApiError(err))
+  }
 }
 
 export async function generateQR(amount: string | null, qrType: 'static' | 'dynamic', description: string, expires_in_minutes: number = 15) {

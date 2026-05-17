@@ -5,11 +5,9 @@ import useSWR from "swr"
 import { fetchWallet, createWallet, type Wallet } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Wallet as WalletIcon, Send, QrCode, AlertCircle, TrendingUp } from "lucide-react"
+import { Wallet as WalletIcon, Send, Download, AlertCircle, TrendingUp } from "lucide-react"
 import { TransactionHistory } from "@/components/transaction-history"
-import { TransferForm } from "@/components/transfer-form"
-import { QRGenerator } from "@/components/qr-generator"
-import { QRScanner } from "@/components/qr-scanner"
+import { SendMoneyModal, ReceiveMoneyModal } from "@/components/money-modals"
 import { useState } from "react"
 
 interface WalletDashboardProps {
@@ -36,27 +34,27 @@ function WalletLoadingSkeleton() {
         </CardContent>
       </Card>
       <div className="flex gap-4">
-        <div className="h-12 flex-1 animate-pulse rounded-lg bg-muted" />
-        <div className="h-12 flex-1 animate-pulse rounded-lg bg-muted" />
+        <div className="h-16 flex-1 animate-pulse rounded-lg bg-muted" />
+        <div className="h-16 flex-1 animate-pulse rounded-lg bg-muted" />
       </div>
     </div>
   )
 }
 
 function WalletNotFound() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false)
 
   const handleCreateWallet = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      await createWallet();
-      mutate(["wallet", undefined]);
+      await createWallet()
+      mutate(["wallet", undefined])
     } catch (error: any) {
-      alert("Failed to create wallet: " + error.message);
+      alert("Failed to create wallet: " + error.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <Card className="border-border bg-card">
@@ -134,13 +132,14 @@ function WalletBalance({ wallet }: { wallet: Wallet }) {
   )
 }
 
-function ActionButtons() {
+function ActionButtons({ walletId }: { walletId: string }) {
   return (
     <div className="grid grid-cols-2 gap-4">
-      <QRScanner
+      <SendMoneyModal
         trigger={
           <Button
-            className="h-14 gap-3 text-base font-medium"
+            id="send-money-btn"
+            className="h-16 flex-col gap-1.5 text-sm font-medium"
             size="lg"
           >
             <Send className="size-5" />
@@ -148,15 +147,17 @@ function ActionButtons() {
           </Button>
         }
       />
-      <QRGenerator
+      <ReceiveMoneyModal
+        walletId={walletId}
         trigger={
           <Button
-            className="h-14 gap-3 text-base font-medium"
+            id="receive-money-btn"
+            className="h-16 flex-col gap-1.5 text-sm font-medium"
             variant="secondary"
             size="lg"
           >
-            <QrCode className="size-5" />
-            Receive QR
+            <Download className="size-5" />
+            Receive Money
           </Button>
         }
       />
@@ -182,7 +183,7 @@ export function WalletDashboard({ token }: WalletDashboardProps) {
     if (error.message === "WALLET_NOT_FOUND") {
       return <WalletNotFound />
     }
-    return <WalletError message="Unable to load wallet. Please try again later." />
+    return <WalletError message={`Unable to load wallet. (${error.message})`} />
   }
 
   if (!wallet) {
@@ -192,8 +193,7 @@ export function WalletDashboard({ token }: WalletDashboardProps) {
   return (
     <div className="space-y-6">
       <WalletBalance wallet={wallet} />
-      <ActionButtons />
-      <TransferForm />
+      <ActionButtons walletId={wallet.id} />
       <TransactionHistory token={token} />
     </div>
   )

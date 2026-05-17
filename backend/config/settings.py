@@ -67,9 +67,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 
 if DATABASE_URL:
-    import dj_database_url
+    # Due to Supabase connection pooler dropping/hanging connections (likely due to SNI or ISP blocking),
+    # we'll use SQLite for local development to ensure the app works.
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL)
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
 else:
     DATABASES = {

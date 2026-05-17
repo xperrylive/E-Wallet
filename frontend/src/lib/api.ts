@@ -70,24 +70,34 @@ api.interceptors.response.use(
 
 export async function fetchWallet(token?: string): Promise<Wallet> {
   try {
-    const response = await api.get('/wallets/me');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await api.get('/wallets/me/', { headers });
     return response.data;
   } catch (error: any) {
+    console.error("fetchWallet error:", error.response?.data || error.message || error);
     if (error.response?.data) {
-      throw new Error(error.response.data.code || error.response.data.error || "UNKNOWN_ERROR");
+      const data = error.response.data;
+      // Extract a meaningful message from Django REST Framework errors
+      const msg = data.code || data.error || data.detail || "UNKNOWN_ERROR";
+      throw new Error(msg);
     }
-    throw error;
+    // Network-level error (server down, ECONNREFUSED)
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      throw new Error('Cannot connect to server. Is the backend running?');
+    }
+    throw new Error(error.message || 'UNKNOWN_ERROR');
   }
 }
 
 export async function createWallet(currency: string = 'MYR'): Promise<Wallet> {
-  const response = await api.post('/wallets/create', { currency });
+  const response = await api.post('/wallets/create/', { currency });
   return response.data;
 }
 
 export async function fetchTransactions(token?: string, page: number = 1): Promise<TransactionsResponse> {
   try {
-    const response = await api.get('/transactions', { params: { page } });
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await api.get('/transactions/', { params: { page }, headers });
     return response.data;
   } catch (error: any) {
     if (error.response?.data) {

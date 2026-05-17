@@ -35,9 +35,11 @@ import {
   X,
   Clock,
   Copy,
+  Loader2,
 } from "lucide-react"
-import { transferMoney, generateQR, payQR } from "@/lib/api"
+import { transferMoney, generateQR, payQR, lookupWallet, lookupQRInfo } from "@/lib/api"
 import { v4 as uuidv4 } from "uuid"
+import { useToast } from "@/components/toast"
 
 // ─── Shared Types ──────────────────────────────────────────────
 
@@ -60,25 +62,39 @@ function QRSendTab() {
   const [scanned, setScanned] = useState<ScannedPayload | null>(null)
   const [dynamicAmount, setDynamicAmount] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
+  const [isLookingUp, setIsLookingUp] = useState(false)
+  const { success, error: toastError } = useToast()
 
-  const handleScan = (payload: ScannedPayload) => setScanned(payload)
+  const resolveAndScan = async (qrId: string) => {
+    setIsLookingUp(true)
+    try {
+      const info = await lookupQRInfo(qrId)
+      setScanned({
+        qr_code_id: info.qr_code_id,
+        merchantName: info.merchant_name,
+        amountType: info.qr_type,
+        amount: info.amount ?? undefined,
+        description: info.description,
+      })
+    } catch (err: any) {
+      toastError("Invalid QR Code", err.response?.data?.error || "QR code not found or expired")
+    } finally {
+      setIsLookingUp(false)
+    }
+  }
 
   const handleConfirm = async () => {
     if (!scanned) return
     setIsConfirming(true)
     try {
-      await payQR(
-        scanned.qr_code_id,
-        scanned.amountType === "dynamic" ? dynamicAmount : null,
-        uuidv4()
-      )
-      alert("Payment successful!")
+      await payQR(scanned.qr_code_id, scanned.amountType === "dynamic" ? dynamicAmount : null, uuidv4())
+      success("Payment Sent!", `Successfully paid ${scanned.merchantName}`)
       mutate(["wallet", undefined])
       mutate(["transactions", undefined])
       setScanned(null)
       setDynamicAmount("")
     } catch (err: any) {
-      alert("Payment failed: " + (err.response?.data?.error || err.message || err))
+      toastError("Payment Failed", err.response?.data?.error || err.message || "Unknown error")
     } finally {
       setIsConfirming(false)
     }
@@ -163,16 +179,22 @@ function QRSendTab() {
     )
   }
 
+  if (isLookingUp) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <Loader2 className="size-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Looking up recipient...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* QR viewfinder */}
       <div
-        className="relative mx-auto aspect-square w-full max-w-64 cursor-pointer overflow-hidden rounded-2xl bg-zinc-900"
-        onClick={() => handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Test User", amountType: "dynamic", description: "Personal transfer" })}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === "Enter" && handleScan({ qr_code_id: "QR-MOCK-DYNAMIC", merchantName: "Test User", amountType: "dynamic", description: "Personal transfer" })}
-        aria-label="Tap to simulate scan"
+        className="relative mx-auto aspect-square w-full max-w-64 overflow-hidden rounded-2xl bg-zinc-900"
+        role="img"
+        aria-label="Paste QR link below to pay"
       >
         <div className="absolute left-4 top-4 h-7 w-7 rounded-tl-lg border-l-2 border-t-2 border-primary" />
         <div className="absolute right-4 top-4 h-7 w-7 rounded-tr-lg border-r-2 border-t-2 border-primary" />
@@ -183,42 +205,26 @@ function QRSendTab() {
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <ScanLine className="size-10 text-primary/60" />
-          <p className="mt-3 text-sm font-medium text-zinc-400">Position QR code here</p>
-          <p className="mt-1 text-xs text-zinc-500">Tap to simulate scan</p>
         </div>
       </div>
 
-      {/* Paste input — parses real ewallet:// or bare QR IDs */}
+      {/* Paste input — resolves real name via API */}
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">Or paste QR Code / payment link</p>
+        <p className="text-xs font-medium text-muted-foreground">Paste QR Code / payment link</p>
         <Input
-          placeholder="ewallet://pay?qr_id=QR-20250517-ABC123 or bare QR ID"
+          placeholder="ewallet://pay?qr_id=QR-20250517-ABC123"
           className="font-mono text-xs"
-          onChange={(e) => {
+          onBlur={async (e) => {
             const raw = e.target.value.trim()
             if (!raw || raw.length < 5) return
             let qrId = raw
-            let amountStr: string | undefined
-            let type: "static" | "dynamic" = "dynamic"
             if (raw.startsWith("ewallet://")) {
               try {
-                // Parse as URL: ewallet://pay?qr_id=...&amount=...
                 const url = new URL(raw.replace("ewallet://", "https://ewallet/"))
                 qrId = url.searchParams.get("qr_id") || raw
-                const amt = url.searchParams.get("amount")
-                if (amt && amt !== "0") {
-                  amountStr = (parseInt(amt) / 100).toFixed(2)
-                  type = "static"
-                }
               } catch {}
             }
-            handleScan({
-              qr_code_id: qrId,
-              merchantName: "Merchant",   // will be resolved server-side on confirm
-              amountType: type,
-              amount: amountStr,
-              description: "Scanned Payment",
-            })
+            await resolveAndScan(qrId)
           }}
         />
       </div>
@@ -247,28 +253,17 @@ function QRSendTab() {
               // Dynamically import jsQR
               const { default: jsQR } = await import("jsqr")
               const result = jsQR(imageData.data, imageData.width, imageData.height)
-              if (!result) {
-                alert("No QR code found in this image. Make sure the QR code is clear and well-lit.")
-                return
-              }
-              const raw = result.data
-              let qrId = raw
-              let amountStr: string | undefined
-              let type: "static" | "dynamic" = "dynamic"
-              if (raw.startsWith("ewallet://")) {
+              if (!result) { toastError("No QR Found", "Make sure the QR code is clear and well-lit."); return }
+              let qrId = result.data
+              if (result.data.startsWith("ewallet://")) {
                 try {
-                  const url = new URL(raw.replace("ewallet://", "https://ewallet/"))
-                  qrId = url.searchParams.get("qr_id") || raw
-                  const amt = url.searchParams.get("amount")
-                  if (amt && amt !== "0") {
-                    amountStr = (parseInt(amt) / 100).toFixed(2)
-                    type = "static"
-                  }
+                  const url = new URL(result.data.replace("ewallet://", "https://ewallet/"))
+                  qrId = url.searchParams.get("qr_id") || result.data
                 } catch {}
               }
-              handleScan({ qr_code_id: qrId, merchantName: "Merchant", amountType: type, amount: amountStr, description: "Scanned from Image" })
-            } catch (err) {
-              alert("Could not read QR code from image.")
+              await resolveAndScan(qrId)
+            } catch {
+              toastError("Scan Failed", "Could not read QR code from this image.")
             }
           }}
         />
@@ -279,23 +274,39 @@ function QRSendTab() {
 
 function AccountSendTab() {
   const [recipientId, setRecipientId] = useState("")
+  const [recipientName, setRecipientName] = useState<string | null>(null)
+  const [isLookingUp, setIsLookingUp] = useState(false)
   const [amount, setAmount] = useState("")
   const [description, setDescription] = useState("")
   const [loading, setLoading] = useState(false)
+  const { success, error: toastError } = useToast()
+
+  const handleWalletBlur = async () => {
+    const id = recipientId.trim()
+    if (id.length < 10) { setRecipientName(null); return }
+    setIsLookingUp(true)
+    try {
+      const info = await lookupWallet(id)
+      setRecipientName(info.display_name)
+    } catch {
+      setRecipientName(null)
+    } finally {
+      setIsLookingUp(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
       await transferMoney(recipientId.trim(), amount, description, uuidv4())
-      setRecipientId("")
-      setAmount("")
-      setDescription("")
-      alert("Transfer successful!")
+      const name = recipientName || "recipient"
+      setRecipientId(""); setRecipientName(null); setAmount(""); setDescription("")
+      success("Transfer Successful!", `Sent MYR ${amount} to ${name}`)
       mutate(["wallet", undefined])
       mutate(["transactions", undefined])
     } catch (err: any) {
-      alert("Transfer failed: " + (err.response?.data?.error || err.message || err))
+      toastError("Transfer Failed", err.response?.data?.error || err.message || "Unknown error")
     } finally {
       setLoading(false)
     }
@@ -309,14 +320,24 @@ function AccountSendTab() {
         <Label htmlFor="send-wallet-id" className="text-sm font-medium text-foreground">
           Recipient Wallet ID
         </Label>
+        {recipientName && (
+          <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
+            <User className="size-4 text-primary" />
+            <span className="text-sm font-medium text-primary">{recipientName}</span>
+          </div>
+        )}
+        <div className="relative">
         <Input
           id="send-wallet-id"
           type="text"
           placeholder="Enter wallet ID (e.g. 550e8400-e29b...)"
           value={recipientId}
-          onChange={(e) => setRecipientId(e.target.value)}
-          className="h-11 bg-input border-border font-mono text-sm"
+          onChange={(e) => { setRecipientId(e.target.value); setRecipientName(null) }}
+          onBlur={handleWalletBlur}
+          className="h-11 bg-input border-border font-mono text-sm pr-8"
         />
+        {isLookingUp && <Loader2 className="absolute right-2 top-3 size-4 animate-spin text-muted-foreground" />}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -430,6 +451,7 @@ function QRReceiveTab() {
   const [qrDataString, setQrDataString] = useState<string>("")
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
+  const { error: toastError } = useToast()
   const [formData, setFormData] = useState<QRFormData>({
     qrType: "static",
     amount: "",
@@ -456,7 +478,7 @@ function QRReceiveTab() {
       setQrDataString(res.qr_data || "")
       setShowSuccess(true)
     } catch (err: any) {
-      alert("Failed to generate QR: " + (err.response?.data?.error || err.message || err))
+      toastError("QR Generation Failed", err.response?.data?.error || err.message || "Unknown error")
     } finally {
       setLoading(false)
     }

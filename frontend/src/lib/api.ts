@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 export interface Wallet {
   id: string
   user_id: string
+  display_name: string
   balance: string
   balance_cents: number
   currency: string
@@ -89,13 +90,32 @@ export async function fetchWallet(token?: string): Promise<Wallet> {
   }
 }
 
-export async function createWallet(currency: string = 'MYR'): Promise<Wallet> {
-  const response = await api.post('/wallets/create/', { currency });
+export async function createWallet(currency: string = 'MYR', displayName: string = ''): Promise<Wallet> {
+  const response = await api.post('/wallets/create/', { currency, display_name: displayName });
   return response.data;
 }
 
 export async function topupWallet(amount: string, description?: string): Promise<{ wallet: Wallet; transaction_id: string; amount_added: string }> {
   const response = await api.post('/wallets/topup/', { amount, description: description || 'Top-up (testing)' });
+  return response.data;
+}
+
+export async function lookupWallet(walletId: string): Promise<{ wallet_id: string; display_name: string; currency: string }> {
+  const response = await api.get(`/wallets/lookup/?wallet_id=${encodeURIComponent(walletId)}`);
+  return response.data;
+}
+
+export async function lookupQRInfo(qrId: string): Promise<{
+  qr_code_id: string
+  merchant_name: string
+  merchant_wallet_id: string
+  amount: string | null
+  amount_cents: number | null
+  qr_type: 'static' | 'dynamic'
+  description: string
+  expires_at: string
+}> {
+  const response = await api.get(`/qr-codes/info/?qr_id=${encodeURIComponent(qrId)}`);
   return response.data;
 }
 

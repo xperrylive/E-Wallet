@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/toast"
 
 interface WalletDashboardProps {
   token: string
@@ -61,6 +62,7 @@ function WalletLoadingSkeleton() {
 
 function WalletNotFound() {
   const [loading, setLoading] = useState(false)
+  const { error: toastError } = useToast()
 
   const handleCreateWallet = async () => {
     setLoading(true)
@@ -68,7 +70,7 @@ function WalletNotFound() {
       await createWallet()
       mutate(["wallet", undefined])
     } catch (error: any) {
-      alert("Failed to create wallet: " + error.message)
+      toastError("Failed to create wallet", error.message)
     } finally {
       setLoading(false)
     }
@@ -116,6 +118,7 @@ function TopupModal({ token, onSuccess }: { token: string; onSuccess: () => void
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
+  const { success, error: toastError } = useToast()
 
   const presets = ["10", "50", "100", "500"]
 
@@ -126,12 +129,12 @@ function TopupModal({ token, onSuccess }: { token: string; onSuccess: () => void
       await topupWallet(amount, "Top-up (testing)")
       setOpen(false)
       setAmount("")
-      // Fix: revalidate exact SWR keys used in this dashboard
+      onSuccess()
       mutate(["wallet", token])
       mutate(["transactions", token])
-      onSuccess()
+      success("Balance Updated!", `RM ${amount} added to your wallet`)
     } catch (err: any) {
-      alert("Top-up failed: " + (err.response?.data?.error || err.message))
+      toastError("Top-up Failed", err.response?.data?.error || err.message)
     } finally {
       setLoading(false)
     }

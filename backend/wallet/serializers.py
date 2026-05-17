@@ -12,7 +12,7 @@ class WalletSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Wallet
-        fields = ['id', 'user_id', 'balance', 'balance_cents', 'currency', 'status', 'created_at', 'updated_at']
+        fields = ['id', 'user_id', 'display_name', 'balance', 'balance_cents', 'currency', 'status', 'created_at', 'updated_at']
         read_only_fields = ['id', 'user_id', 'balance_cents', 'status', 'created_at', 'updated_at']
 
     def get_balance(self, obj):

@@ -13,6 +13,7 @@ urlpatterns = [
     path('wallets/me/', views.WalletDetailView.as_view(), name='wallet-detail'),
     path('wallets/create/', views.WalletCreateView.as_view(), name='wallet-create'),
     path('wallets/topup/', views.WalletTopupView.as_view(), name='wallet-topup'),
+    path('wallets/lookup/', views.WalletLookupView.as_view(), name='wallet-lookup'),
 
     # Transactions
     path('transactions/transfer/', views.TransferView.as_view(), name='transfer'),
@@ -22,6 +23,7 @@ urlpatterns = [
     # QR Codes
     path('qr-codes/generate/', views.QRGenerateView.as_view(), name='qr-generate'),
     path('qr-codes/pay/', views.QRPayView.as_view(), name='qr-pay'),
+    path('qr-codes/info/', views.QRInfoView.as_view(), name='qr-info'),
     path('qr-codes/me/', views.QRListView.as_view(), name='qr-list'),
 
     # Webhooks

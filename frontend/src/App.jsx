@@ -13,6 +13,8 @@ function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -24,30 +26,26 @@ function Auth() {
     setMessage('');
     try {
       if (isSignUp) {
+        const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            // Skip email confirmation for demo/local use
+            data: { full_name: displayName, first_name: firstName.trim(), last_name: lastName.trim() },
             emailRedirectTo: undefined,
           }
         });
         if (error) throw error;
 
-        // If session is returned immediately, email confirmation is disabled — good!
         if (data.session) {
-          // Already logged in, App will re-render
+          // Email confirmation disabled — immediately signed in
           return;
         }
 
-        // If no session, email confirmation is required
-        // Auto-sign in if possible
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) {
-          // Email confirmation is required
-          setMessage('Account created! Since email confirmation is enabled, please check your inbox or contact the admin to disable it in Supabase Dashboard → Auth → Email.');
+          setMessage('Account created! Please check your inbox to confirm your email, then sign in.');
         }
-        // If sign in worked, session update handled by auth listener
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -70,6 +68,31 @@ function Auth() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
+            {isSignUp && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="first-name">First Name</Label>
+                  <Input
+                    id="first-name"
+                    type="text"
+                    placeholder="Ahmad"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required={isSignUp}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last-name">Last Name</Label>
+                  <Input
+                    id="last-name"
+                    type="text"
+                    placeholder="Razak"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -93,10 +116,10 @@ function Auth() {
               />
             </div>
             {error && (
-              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950 p-3 rounded-md">{error}</p>
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>
             )}
             {message && (
-              <p className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-950 p-3 rounded-md">{message}</p>
+              <p className="text-sm text-primary bg-primary/10 p-3 rounded-md">{message}</p>
             )}
             <Button className="w-full" type="submit" disabled={loading}>
               {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
@@ -119,16 +142,17 @@ function Auth() {
 function AppContent({ session }) {
   const [walletReady, setWalletReady] = useState(false);
 
-  // Auto-create wallet on first login so users never see "wallet not found"
   useEffect(() => {
     if (!session) return;
 
     const ensureWallet = async () => {
       try {
-        await createWallet('MYR');
+        // Pull display_name from Supabase user metadata
+        const meta = session.user?.user_metadata || {};
+        const displayName = meta.full_name || meta.name || meta.email?.split('@')[0] || '';
+        await createWallet('MYR', displayName);
       } catch (err) {
-        // Wallet already exists (WALLET_EXISTS error) or other error — that's fine
-        // The dashboard will load the existing wallet
+        // Wallet already exists — fine, dashboard will load it
       } finally {
         setWalletReady(true);
       }

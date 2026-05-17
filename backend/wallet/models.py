@@ -17,6 +17,7 @@ class Wallet(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user_id = models.UUIDField(db_index=True)  # References Supabase auth.users
+    display_name = models.CharField(max_length=100, blank=True, default='')  # User's display name
     balance_cents = models.BigIntegerField(default=0, validators=[MinValueValidator(0)])
     currency = models.CharField(max_length=3, default='MYR')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')

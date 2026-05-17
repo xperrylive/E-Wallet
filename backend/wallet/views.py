@@ -7,6 +7,7 @@ import logging
 import secrets
 
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -94,8 +95,11 @@ class WalletCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        display_name = request.data.get('display_name', '').strip()[:100]
+
         wallet = Wallet.objects.create(
             user_id=user_id,
+            display_name=display_name,
             currency=currency,
             status='active',
             balance_cents=0,
@@ -155,6 +159,61 @@ class WalletTopupView(APIView):
             'wallet': serializer.data,
             'transaction_id': str(txn.id),
             'amount_added': f'{amount_decimal:.2f}',
+        }, status=status.HTTP_200_OK)
+
+
+class WalletLookupView(APIView):
+    """GET /api/wallets/lookup/?wallet_id=UUID - Public lookup of wallet display name."""
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        wallet_id = request.query_params.get('wallet_id', '').strip()
+        if not wallet_id:
+            return Response({'error': 'wallet_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            wallet = Wallet.objects.get(id=wallet_id, status='active')
+            return Response({
+                'wallet_id': str(wallet.id),
+                'display_name': wallet.display_name or 'Unknown',
+                'currency': wallet.currency,
+            }, status=status.HTTP_200_OK)
+        except Wallet.DoesNotExist:
+            return Response({'error': 'Wallet not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception:
+            return Response({'error': 'Invalid wallet ID'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class QRInfoView(APIView):
+    """GET /api/qr-codes/info/?qr_id=QR-XXX - Public lookup of QR code info (name + amount)."""
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        qr_id = request.query_params.get('qr_id', '').strip()
+        if not qr_id:
+            return Response({'error': 'qr_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            qr = QRCode.objects.select_related('merchant_wallet').get(qr_code_id=qr_id)
+        except QRCode.DoesNotExist:
+            return Response({'error': 'QR code not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if qr.status == 'expired' or (timezone.now() > qr.expires_at):
+            return Response({'error': 'QR code has expired', 'code': 'QR_EXPIRED'}, status=status.HTTP_400_BAD_REQUEST)
+        if qr.status == 'used':
+            return Response({'error': 'QR code has already been used', 'code': 'QR_USED'}, status=status.HTTP_400_BAD_REQUEST)
+        if qr.status != 'active':
+            return Response({'error': f'QR code is {qr.status}', 'code': 'QR_INVALID'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'qr_code_id': qr.qr_code_id,
+            'merchant_name': qr.merchant_wallet.display_name or 'Unknown',
+            'merchant_wallet_id': str(qr.merchant_wallet.id),
+            'amount': f"{qr.amount_cents / 100:.2f}" if qr.amount_cents else None,
+            'amount_cents': qr.amount_cents,
+            'qr_type': qr.qr_type,
+            'description': qr.description or '',
+            'expires_at': qr.expires_at.isoformat(),
         }, status=status.HTTP_200_OK)
 
 

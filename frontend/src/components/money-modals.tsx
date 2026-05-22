@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { mutate } from "swr"
 import {
   Dialog,
@@ -446,18 +446,57 @@ interface QRFormData {
 }
 
 function QRReceiveTab() {
+  const [subTab, setSubTab] = useState<"permanent" | "custom">("permanent")
+  
+  // Permanent QR State
+  const [permanentQr, setPermanentQr] = useState<{
+    qr_code_id: string
+    qr_image_url: string
+    qr_data: string
+  } | null>(null)
+  const [permLoading, setPermLoading] = useState(false)
+  const [permCopied, setPermCopied] = useState(false)
+
+  // Custom QR state
   const [showSuccess, setShowSuccess] = useState(false)
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
   const [qrDataString, setQrDataString] = useState<string>("")
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const { error: toastError } = useToast()
+  
   const [formData, setFormData] = useState<QRFormData>({
     qrType: "static",
     amount: "",
     description: "",
     expiration: "15min",
   })
+
+  // Fetch permanent QR code
+  useEffect(() => {
+    if (subTab === "permanent" && !permanentQr) {
+      setPermLoading(true)
+      import("@/lib/api").then(({ fetchPermanentQR }) => {
+        fetchPermanentQR()
+          .then((res) => {
+            setPermanentQr(res)
+          })
+          .catch((err) => {
+            toastError("Failed to load permanent QR", err.message || "Unknown error")
+          })
+          .finally(() => {
+            setPermLoading(false)
+          })
+      })
+    }
+  }, [subTab, permanentQr])
+
+  const handleCopyPermData = async () => {
+    if (!permanentQr) return
+    await navigator.clipboard.writeText(permanentQr.qr_data)
+    setPermCopied(true)
+    setTimeout(() => setPermCopied(false), 2000)
+  }
 
   const isStaticAmount = formData.qrType === "static"
   const canGenerate = formData.qrType === "dynamic" || (isStaticAmount && parseFloat(formData.amount) > 0)
@@ -490,138 +529,226 @@ function QRReceiveTab() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (showSuccess) {
+  const renderPermanentTab = () => {
+    if (permLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <p className="mt-2 text-sm text-muted-foreground">Loading permanent QR code...</p>
+        </div>
+      )
+    }
+
+    if (!permanentQr) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm text-muted-foreground">Could not load permanent QR code.</p>
+        </div>
+      )
+    }
+
     return (
       <div className="flex flex-col items-center space-y-5">
         <div className="rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border">
-          {qrImageUrl ? (
-            <img src={qrImageUrl} alt="QR Code" className="size-48" />
-          ) : (
-            <div className="flex size-48 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/50">
-              <QrCode className="size-12 text-muted-foreground" />
-            </div>
-          )}
+          <img src={permanentQr.qr_image_url} alt="Permanent QR Code" className="size-48" />
         </div>
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">
-            {formData.qrType === "static" ? (
-              <>Amount: <span className="font-semibold text-foreground">MYR {parseFloat(formData.amount).toFixed(2)}</span></>
-            ) : (
-              <span className="font-medium text-foreground">Dynamic Amount</span>
-            )}
-          </p>
-          {formData.description && <p className="mt-1 text-sm text-muted-foreground">{formData.description}</p>}
-          <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
-            <Clock className="size-3" />
-            Expires in {formData.expiration === "15min" ? "15 minutes" : formData.expiration === "1hour" ? "1 hour" : "24 hours"}
+          <p className="text-sm font-medium text-foreground">Your Permanent QR Code</p>
+          <p className="mt-1 text-xs text-muted-foreground max-w-72">
+            This QR code never expires. Anyone can scan it to send any amount of money to this account.
           </p>
         </div>
 
-        {/* QR Data string — for testing between two accounts */}
-        {qrDataString && (
+        {permanentQr.qr_data && (
           <div className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary/70">
               📋 Copy for Account B to pay (testing)
             </p>
-            <p className="mb-2 break-all font-mono text-xs text-foreground">{qrDataString}</p>
+            <p className="mb-2 break-all font-mono text-xs text-foreground">{permanentQr.qr_data}</p>
             <button
-              onClick={handleCopyData}
+              onClick={handleCopyPermData}
               className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/10 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
             >
-              {copied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
+              {permCopied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
             </button>
           </div>
         )}
 
-        <div className="grid w-full grid-cols-2 gap-3">
-          <Button variant="secondary" className="h-11 gap-2" onClick={async () => {
-            if (navigator.share) { try { await navigator.share({ title: "Payment QR Code", text: qrDataString }) } catch {} }
+        <div className="w-full">
+          <Button variant="secondary" className="h-11 w-full gap-2" onClick={async () => {
+            if (navigator.share) {
+              try {
+                await navigator.share({ title: "My Permanent E-Wallet QR Code", text: permanentQr.qr_data })
+              } catch {}
+            }
           }}>
-            <Share2 className="size-4" /> Share
-          </Button>
-          <Button variant="outline" className="h-11 gap-2" onClick={() => { setShowSuccess(false); setQrImageUrl(null); setQrDataString("") }}>
-            <X className="size-4" /> New QR
+            <Share2 className="size-4" /> Share QR Code
           </Button>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <Label className="text-sm font-medium text-foreground">QR Type</Label>
-        <ToggleGroup
-          type="single"
-          value={formData.qrType}
-          onValueChange={(v) => v && setFormData({ ...formData, qrType: v as QRType })}
-          className="grid grid-cols-2 gap-2"
-        >
-          <ToggleGroupItem value="static" className="h-11 gap-2 border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
-            <Check className="size-4" /> Fixed Amount
-          </ToggleGroupItem>
-          <ToggleGroupItem value="dynamic" className="h-11 gap-2 border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
-            <QrCode className="size-4" /> Any Amount
-          </ToggleGroupItem>
-        </ToggleGroup>
-        <p className="text-xs text-muted-foreground">
-          {isStaticAmount ? "Set a fixed amount for the payment." : "Payer enters the amount when scanning."}
-        </p>
-      </div>
+  const renderCustomTab = () => {
+    if (showSuccess) {
+      return (
+        <div className="flex flex-col items-center space-y-5">
+          <div className="rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border">
+            {qrImageUrl ? (
+              <img src={qrImageUrl} alt="QR Code" className="size-48" />
+            ) : (
+              <div className="flex size-48 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/50">
+                <QrCode className="size-12 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              {formData.qrType === "static" ? (
+                <>Amount: <span className="font-semibold text-foreground">MYR {parseFloat(formData.amount).toFixed(2)}</span></>
+              ) : (
+                <span className="font-medium text-foreground">Dynamic Amount</span>
+              )}
+            </p>
+            {formData.description && <p className="mt-1 text-sm text-muted-foreground">{formData.description}</p>}
+            <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3" />
+              Expires in {formData.expiration === "15min" ? "15 minutes" : formData.expiration === "1hour" ? "1 hour" : "24 hours"}
+            </p>
+          </div>
 
-      {isStaticAmount && (
-        <div className="space-y-2">
-          <Label htmlFor="receive-amount" className="text-sm font-medium text-foreground">Amount (MYR)</Label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">MYR</span>
-            <Input
-              id="receive-amount"
-              type="number"
-              placeholder="0.00"
-              min="0.01"
-              step="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              className="h-12 pl-12 text-lg font-medium"
-            />
+          {/* QR Data string — for testing between two accounts */}
+          {qrDataString && (
+            <div className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary/70">
+                📋 Copy for Account B to pay (testing)
+              </p>
+              <p className="mb-2 break-all font-mono text-xs text-foreground">{qrDataString}</p>
+              <button
+                onClick={handleCopyData}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/10 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+              >
+                {copied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
+              </button>
+            </div>
+          )}
+
+          <div className="grid w-full grid-cols-2 gap-3">
+            <Button variant="secondary" className="h-11 gap-2" onClick={async () => {
+              if (navigator.share) { try { await navigator.share({ title: "Payment QR Code", text: qrDataString }) } catch {} }
+            }}>
+              <Share2 className="size-4" /> Share
+            </Button>
+            <Button variant="outline" className="h-11 gap-2" onClick={() => { setShowSuccess(false); setQrImageUrl(null); setQrDataString("") }}>
+              <X className="size-4" /> New QR
+            </Button>
           </div>
         </div>
-      )}
+      )
+    }
 
-      <div className="space-y-2">
-        <Label htmlFor="receive-description" className="text-sm font-medium text-foreground">
-          Description <span className="text-muted-foreground">(optional)</span>
-        </Label>
-        <Textarea
-          id="receive-description"
-          placeholder="Payment for..."
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="min-h-20 resize-none"
-        />
-      </div>
+    return (
+      <div className="space-y-5">
+        <div className="space-y-3">
+          <Label className="text-sm font-medium text-foreground">QR Type</Label>
+          <ToggleGroup
+            type="single"
+            value={formData.qrType}
+            onValueChange={(v) => v && setFormData({ ...formData, qrType: v as QRType })}
+            className="grid grid-cols-2 gap-2"
+          >
+            <ToggleGroupItem value="static" className="h-11 gap-2 border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
+              <Check className="size-4" /> Fixed Amount
+            </ToggleGroupItem>
+            <ToggleGroupItem value="dynamic" className="h-11 gap-2 border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
+              <QrCode className="size-4" /> Any Amount
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-xs text-muted-foreground">
+            {isStaticAmount ? "Set a fixed amount for the payment." : "Payer enters the amount when scanning."}
+          </p>
+        </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="receive-expiration" className="text-sm font-medium text-foreground">Expiration</Label>
-        <Select value={formData.expiration} onValueChange={(v) => setFormData({ ...formData, expiration: v as ExpirationOption })}>
-          <SelectTrigger id="receive-expiration" className="h-11">
-            <div className="flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
-              <SelectValue />
+        {isStaticAmount && (
+          <div className="space-y-2">
+            <Label htmlFor="receive-amount" className="text-sm font-medium text-foreground">Amount (MYR)</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">MYR</span>
+              <Input
+                id="receive-amount"
+                type="number"
+                placeholder="0.00"
+                min="0.01"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className="h-12 pl-12 text-lg font-medium"
+              />
             </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="15min">15 minutes</SelectItem>
-            <SelectItem value="1hour">1 hour</SelectItem>
-            <SelectItem value="24hours">24 hours</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          </div>
+        )}
 
-      <Button onClick={handleGenerate} disabled={!canGenerate || loading} className="h-12 w-full gap-2 text-base font-medium">
-        <QrCode className="size-5" />
-        {loading ? "Generating..." : "Generate QR Code"}
-      </Button>
+        <div className="space-y-2">
+          <Label htmlFor="receive-description" className="text-sm font-medium text-foreground">
+            Description <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Textarea
+            id="receive-description"
+            placeholder="Payment for..."
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="min-h-20 resize-none"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="receive-expiration" className="text-sm font-medium text-foreground">Expiration</Label>
+          <Select value={formData.expiration} onValueChange={(v) => setFormData({ ...formData, expiration: v as ExpirationOption })}>
+            <SelectTrigger id="receive-expiration" className="h-11">
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-muted-foreground" />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="15min">15 minutes</SelectItem>
+              <SelectItem value="1hour">1 hour</SelectItem>
+              <SelectItem value="24hours">24 hours</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button onClick={handleGenerate} disabled={!canGenerate || loading} className="h-12 w-full gap-2 text-base font-medium">
+          <QrCode className="size-5" />
+          {loading ? "Generating..." : "Generate QR Code"}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      <ToggleGroup
+        type="single"
+        value={subTab}
+        onValueChange={(v) => v && setSubTab(v as "permanent" | "custom")}
+        className="grid grid-cols-2 gap-2 border-b border-border pb-3"
+      >
+        <ToggleGroupItem
+          value="permanent"
+          className="h-9 gap-1.5 text-xs border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+        >
+          Permanent QR
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="custom"
+          className="h-9 gap-1.5 text-xs border border-border data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+        >
+          Custom QR
+        </ToggleGroupItem>
+      </ToggleGroup>
+
+      {subTab === "permanent" ? renderPermanentTab() : renderCustomTab()}
     </div>
   )
 }

@@ -205,4 +205,18 @@ export async function payQR(qrCodeId: string, amount: string | null, idempotency
   }
 }
 
+export async function fetchPermanentQR(): Promise<{
+  qr_code_id: string;
+  qr_image_url: string;
+  qr_data: string;
+}> {
+  try {
+    const response = await api.get('/qr-codes/permanent/');
+    return response.data;
+  } catch (err: any) {
+    console.error('[fetchPermanentQR] error:', err.response?.status, err.response?.data ?? err.message);
+    throw new Error(extractApiError(err));
+  }
+}
+
 export default api;

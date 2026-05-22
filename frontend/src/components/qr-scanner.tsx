@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScanLine, Upload, Check, User, Banknote } from "lucide-react"
+import { useToast } from "@/components/toast"
 
 interface QRScannerProps {
   trigger: React.ReactNode
@@ -242,6 +243,7 @@ export function QRScanner({ trigger }: QRScannerProps) {
   const [dynamicAmount, setDynamicAmount] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
   const [scanType, setScanType] = useState < "static" | "dynamic" > ("static")
+  const { success, error: toastError } = useToast()
 
   // Alternate between static and dynamic scans for demo purposes
   useEffect(() => {
@@ -268,12 +270,12 @@ export function QRScanner({ trigger }: QRScannerProps) {
         uuidv4()
       )
       
-      alert("Payment successful!")
+      success("Payment Sent!", `Successfully paid ${scannedPayload.merchantName}`)
       mutate(["wallet", undefined])
       mutate(["transactions", undefined])
       handleClose()
     } catch (err: any) {
-      alert("Payment failed: " + (err.message || err))
+      toastError("Payment Failed", err.message || "Unknown error")
     } finally {
       setIsConfirming(false)
     }

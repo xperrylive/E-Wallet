@@ -189,15 +189,20 @@ export async function generateQR(amount: string | null, qrType: 'static' | 'dyna
 }
 
 export async function payQR(qrCodeId: string, amount: string | null, idempotencyKey: string) {
-  const payload: any = {
-    qr_code_id: qrCodeId,
-    idempotency_key: idempotencyKey,
-  };
-  if (amount) {
-    payload.amount = amount;
+  try {
+    const payload: any = {
+      qr_code_id: qrCodeId,
+      idempotency_key: idempotencyKey,
+    };
+    if (amount) {
+      payload.amount = amount;
+    }
+    const response = await api.post('/qr-codes/pay/', payload);
+    return response.data;
+  } catch (err: any) {
+    console.error('[payQR] error:', err.response?.status, err.response?.data ?? err.message);
+    throw new Error(extractApiError(err));
   }
-  const response = await api.post('/qr-codes/pay/', payload);
-  return response.data;
 }
 
 export default api;

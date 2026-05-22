@@ -1,6 +1,4 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,10 +7,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ScanLine, Upload, Check, User, Banknote } from "lucide-react"
+import { ScanLine, Check, User, Banknote } from "lucide-react"
 import { useToast } from "@/components/toast"
 
 interface QRScannerProps {
@@ -27,30 +22,12 @@ interface ScannedPayload {
   description?: string
 }
 
-function ScannerViewfinder({ onScan }: { onScan: (payload: ScannedPayload) => void }) {
+function ScannerViewfinder() {
   return (
     <div className="space-y-4">
       <div
-        className="relative mx-auto aspect-square w-full max-w-72 cursor-pointer overflow-hidden rounded-2xl bg-zinc-900"
-        onClick={() => onScan({
-          qr_code_id: "QR-MOCK-DYNAMIC",
-          merchantName: "Ahmad bin Abdullah",
-          amountType: "dynamic",
-          description: "Personal transfer",
-        })}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            onScan({
-              qr_code_id: "QR-MOCK-DYNAMIC",
-              merchantName: "Ahmad bin Abdullah",
-              amountType: "dynamic",
-              description: "Personal transfer",
-            })
-          }
-        }}
-        aria-label="Tap to simulate scan"
+        className="relative mx-auto aspect-square w-full max-w-72 overflow-hidden rounded-2xl bg-zinc-900"
+        aria-label="QR code scanning viewfinder"
       >
         {/* Corner brackets */}
         <div className="absolute left-4 top-4 h-8 w-8 border-l-3 border-t-3 border-primary rounded-tl-lg" />
@@ -63,64 +40,14 @@ function ScannerViewfinder({ onScan }: { onScan: (payload: ScannedPayload) => vo
           <div className="h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
         </div>
 
-        {/* Center hint text */}
+        {/* Center hint */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <ScanLine className="size-10 text-primary/60" />
           <p className="mt-3 text-sm font-medium text-zinc-400">
             Position QR code here
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Tap to simulate scan
-          </p>
         </div>
       </div>
-
-      <div className="flex gap-2">
-        <Input 
-          placeholder="Paste QR Code ID here for testing..." 
-          onChange={(e) => {
-            if (e.target.value.length > 10) {
-              // Parse URL if it's the full data URL, e.g. ewallet://pay?qr_id=QR-XYZ&amount=2500
-              let qrId = e.target.value;
-              let amountStr = undefined;
-              let type = "dynamic";
-              if (qrId.includes("qr_id=")) {
-                const url = new URL(qrId);
-                qrId = url.searchParams.get("qr_id") || qrId;
-                const amt = url.searchParams.get("amount");
-                if (amt && amt !== "0") {
-                   amountStr = (parseInt(amt) / 100).toFixed(2);
-                   type = "static";
-                }
-              }
-              onScan({
-                qr_code_id: qrId,
-                merchantName: "Test Merchant",
-                amountType: type as any,
-                amount: amountStr,
-                description: "Scanned Payment"
-              });
-            }
-          }}
-        />
-      </div>
-
-      <Button
-        variant="secondary"
-        className="h-12 w-full gap-2"
-        onClick={() => {
-          onScan({
-            qr_code_id: "QR-TEST",
-            merchantName: "Coffee Corner Sdn Bhd",
-            amountType: "static",
-            amount: "15.90",
-            description: "Order #1234 - Iced Latte",
-          })
-        }}
-      >
-        <Upload className="size-4" />
-        Upload QR image from gallery
-      </Button>
     </div>
   )
 }
@@ -239,23 +166,10 @@ function PaymentConfirmationView({
 
 export function QRScanner({ trigger }: QRScannerProps) {
   const [open, setOpen] = useState(false)
-  const [scannedPayload, setScannedPayload] = useState < ScannedPayload | null > (null)
+  const [scannedPayload, setScannedPayload] = useState<ScannedPayload | null>(null)
   const [dynamicAmount, setDynamicAmount] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
-  const [scanType, setScanType] = useState < "static" | "dynamic" > ("static")
   const { success, error: toastError } = useToast()
-
-  // Alternate between static and dynamic scans for demo purposes
-  useEffect(() => {
-    if (open) {
-      setScanType((prev) => (prev === "static" ? "dynamic" : "static"))
-    }
-  }, [open])
-
-  const handleScan = (payload: ScannedPayload) => {
-    setScannedPayload(payload)
-  }
-
   const handleConfirm = async () => {
     if (!scannedPayload) return
     setIsConfirming(true)
@@ -327,7 +241,7 @@ export function QRScanner({ trigger }: QRScannerProps) {
             isConfirming={isConfirming}
           />
         ) : (
-          <ScannerViewfinder onScan={handleScan} />
+          <ScannerViewfinder />
         )}
       </DialogContent>
     </Dialog>

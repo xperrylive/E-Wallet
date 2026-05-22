@@ -34,7 +34,6 @@ import {
   Share2,
   X,
   Clock,
-  Copy,
   Loader2,
 } from "lucide-react"
 import { transferMoney, generateQR, payQR, lookupWallet, lookupQRInfo, fetchPermanentQR } from "@/lib/api"
@@ -455,16 +454,14 @@ function QRReceiveTab() {
     qr_data: string
   } | null>(null)
   const [permLoading, setPermLoading] = useState(false)
-  const [permCopied, setPermCopied] = useState(false)
 
   // Custom QR state
   const [showSuccess, setShowSuccess] = useState(false)
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null)
   const [qrDataString, setQrDataString] = useState<string>("")
-  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const { error: toastError } = useToast()
-  
+
   const [formData, setFormData] = useState<QRFormData>({
     qrType: "static",
     amount: "",
@@ -489,13 +486,6 @@ function QRReceiveTab() {
     }
   }, [subTab, permanentQr])
 
-  const handleCopyPermData = async () => {
-    if (!permanentQr) return
-    await navigator.clipboard.writeText(permanentQr.qr_data)
-    setPermCopied(true)
-    setTimeout(() => setPermCopied(false), 2000)
-  }
-
   const isStaticAmount = formData.qrType === "static"
   const canGenerate = formData.qrType === "dynamic" || (isStaticAmount && parseFloat(formData.amount) > 0)
 
@@ -519,12 +509,6 @@ function QRReceiveTab() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleCopyData = async () => {
-    await navigator.clipboard.writeText(qrDataString)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   const renderPermanentTab = () => {
@@ -556,21 +540,6 @@ function QRReceiveTab() {
             This QR code never expires. Anyone can scan it to send any amount of money to this account.
           </p>
         </div>
-
-        {permanentQr.qr_data && (
-          <div className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary/70">
-              📋 Copy for Account B to pay (testing)
-            </p>
-            <p className="mb-2 break-all font-mono text-xs text-foreground">{permanentQr.qr_data}</p>
-            <button
-              onClick={handleCopyPermData}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/10 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
-            >
-              {permCopied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
-            </button>
-          </div>
-        )}
 
         <div className="w-full">
           <Button variant="secondary" className="h-11 w-full gap-2" onClick={async () => {
@@ -614,22 +583,6 @@ function QRReceiveTab() {
               Expires in {formData.expiration === "15min" ? "15 minutes" : formData.expiration === "1hour" ? "1 hour" : "24 hours"}
             </p>
           </div>
-
-          {/* QR Data string — for testing between two accounts */}
-          {qrDataString && (
-            <div className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary/70">
-                📋 Copy for Account B to pay (testing)
-              </p>
-              <p className="mb-2 break-all font-mono text-xs text-foreground">{qrDataString}</p>
-              <button
-                onClick={handleCopyData}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary/10 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
-              >
-                {copied ? <><Check className="size-3" /> Copied!</> : <><Copy className="size-3" /> Copy QR Data</>}
-              </button>
-            </div>
-          )}
 
           <div className="grid w-full grid-cols-2 gap-3">
             <Button variant="secondary" className="h-11 gap-2" onClick={async () => {

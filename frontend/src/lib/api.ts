@@ -108,7 +108,7 @@ export async function createWallet(currency: string = 'MYR', displayName: string
 }
 
 export async function topupWallet(amount: string, description?: string): Promise<{ wallet: Wallet; transaction_id: string; amount_added: string }> {
-  const response = await api.post('/wallets/topup/', { amount, description: description || 'Top-up (testing)' });
+  const response = await api.post('/wallets/topup/', { amount, description: description || 'Wallet Top-up' });
   return response.data;
 }
 

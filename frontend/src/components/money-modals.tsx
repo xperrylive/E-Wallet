@@ -24,7 +24,6 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   ScanLine,
-  Upload,
   Check,
   User,
   Banknote,
@@ -34,6 +33,7 @@ import {
   Share2,
   X,
   Clock,
+  Copy,
   Loader2,
 } from "lucide-react"
 import { transferMoney, generateQR, payQR, lookupWallet, lookupQRInfo, fetchPermanentQR } from "@/lib/api"

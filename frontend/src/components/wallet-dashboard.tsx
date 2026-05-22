@@ -126,7 +126,7 @@ function TopupModal({ token, onSuccess }: { token: string; onSuccess: () => void
     if (!amount || parseFloat(amount) <= 0) return
     setLoading(true)
     try {
-      await topupWallet(amount, "Top-up (testing)")
+      await topupWallet(amount, "Wallet Top-up")
       setOpen(false)
       setAmount("")
       onSuccess()
@@ -161,7 +161,7 @@ function TopupModal({ token, onSuccess }: { token: string; onSuccess: () => void
             Top Up Balance
           </DialogTitle>
           <DialogDescription>
-            Add test funds to your wallet for development purposes.
+            Add funds to your e-wallet balance.
           </DialogDescription>
         </DialogHeader>
 

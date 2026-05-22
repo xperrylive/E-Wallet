@@ -7,6 +7,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScanLine, Check, User, Banknote } from "lucide-react"
 import { useToast } from "@/components/toast"
 

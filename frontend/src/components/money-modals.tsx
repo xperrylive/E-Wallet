@@ -24,6 +24,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   ScanLine,
+  Upload,
   Check,
   User,
   Banknote,

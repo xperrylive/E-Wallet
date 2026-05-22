@@ -37,7 +37,7 @@ import {
   Copy,
   Loader2,
 } from "lucide-react"
-import { transferMoney, generateQR, payQR, lookupWallet, lookupQRInfo } from "@/lib/api"
+import { transferMoney, generateQR, payQR, lookupWallet, lookupQRInfo, fetchPermanentQR } from "@/lib/api"
 import { v4 as uuidv4 } from "uuid"
 import { useToast } from "@/components/toast"
 
@@ -476,18 +476,16 @@ function QRReceiveTab() {
   useEffect(() => {
     if (subTab === "permanent" && !permanentQr) {
       setPermLoading(true)
-      import("@/lib/api").then(({ fetchPermanentQR }) => {
-        fetchPermanentQR()
-          .then((res) => {
-            setPermanentQr(res)
-          })
-          .catch((err) => {
-            toastError("Failed to load permanent QR", err.message || "Unknown error")
-          })
-          .finally(() => {
-            setPermLoading(false)
-          })
-      })
+      fetchPermanentQR()
+        .then((res) => {
+          setPermanentQr(res)
+        })
+        .catch((err) => {
+          toastError("Failed to load permanent QR", err.message || "Unknown error")
+        })
+        .finally(() => {
+          setPermLoading(false)
+        })
     }
   }, [subTab, permanentQr])
 

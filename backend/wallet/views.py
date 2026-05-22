@@ -198,7 +198,7 @@ class QRInfoView(APIView):
         except QRCode.DoesNotExist:
             return Response({'error': 'QR code not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if qr.status == 'expired' or (timezone.now() > qr.expires_at):
+        if qr.status == 'expired' or (qr.expires_at and timezone.now() > qr.expires_at):
             return Response({'error': 'QR code has expired', 'code': 'QR_EXPIRED'}, status=status.HTTP_400_BAD_REQUEST)
         if qr.status == 'used':
             return Response({'error': 'QR code has already been used', 'code': 'QR_USED'}, status=status.HTTP_400_BAD_REQUEST)
@@ -213,7 +213,7 @@ class QRInfoView(APIView):
             'amount_cents': qr.amount_cents,
             'qr_type': qr.qr_type,
             'description': qr.description or '',
-            'expires_at': qr.expires_at.isoformat(),
+            'expires_at': qr.expires_at.isoformat() if qr.expires_at else None,
         }, status=status.HTTP_200_OK)
 
 
@@ -442,6 +442,37 @@ class QRGenerateView(APIView):
             response_data['qr_data'] = qr_data
 
             return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except ValueError as e:
+            return Response(
+                {'error': str(e), 'code': 'VALIDATION_ERROR'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class PermanentQRView(APIView):
+    """GET /api/qr-codes/permanent - Get or generate a permanent (never-expiring) QR code for the user's active wallet."""
+
+    def get(self, request):
+        wallet = get_user_wallet(request)
+        if not wallet:
+            return Response(
+                {'error': 'Wallet not found', 'code': 'WALLET_NOT_FOUND'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            qr_code, img_buffer, qr_data = QRCodeService.get_or_create_permanent_qr(
+                merchant_wallet_id=wallet.id
+            )
+
+            response_data = QRCodeSerializer(qr_code).data
+            # Encode QR image as base64 data URL
+            img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+            response_data['qr_image_url'] = f"data:image/png;base64,{img_base64}"
+            response_data['qr_data'] = qr_data
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except ValueError as e:
             return Response(

@@ -25,6 +25,7 @@ urlpatterns = [
     path('qr-codes/pay/', views.QRPayView.as_view(), name='qr-pay'),
     path('qr-codes/info/', views.QRInfoView.as_view(), name='qr-info'),
     path('qr-codes/me/', views.QRListView.as_view(), name='qr-list'),
+    path('qr-codes/permanent/', views.PermanentQRView.as_view(), name='qr-permanent'),
 
     # Webhooks
     path('webhooks/', views.WebhookListCreateView.as_view(), name='webhook-list-create'),

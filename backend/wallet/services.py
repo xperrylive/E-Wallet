@@ -172,7 +172,10 @@ class QRCodeService:
         qr_code_id = QRCodeService._generate_qr_id()
 
         # Calculate expiration
-        expires_at = timezone.now() + timedelta(minutes=expires_in_minutes)
+        if expires_in_minutes is not None:
+            expires_at = timezone.now() + timedelta(minutes=expires_in_minutes)
+        else:
+            expires_at = None
 
         # Convert amount to cents
         amount_cents = None
@@ -194,6 +197,59 @@ class QRCodeService:
 
         # Generate QR code image data payload
         qr_data = f"ewallet://pay?qr_id={qr_code_id}&amount={amount_cents or 0}&merchant={merchant_wallet_id}"
+
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        return qr_code, img_buffer, qr_data
+
+    @staticmethod
+    def get_or_create_permanent_qr(merchant_wallet_id):
+        """
+        Get or create a permanent QR code for a wallet.
+        """
+        # Validate merchant wallet
+        try:
+            merchant_wallet = Wallet.objects.get(id=merchant_wallet_id)
+        except Wallet.DoesNotExist:
+            raise ValueError("Merchant wallet not found")
+
+        if merchant_wallet.status != 'active':
+            raise ValueError("Merchant wallet is not active")
+
+        # Check if active permanent QR code already exists (no expiration, dynamic, status=active)
+        qr_code = QRCode.objects.filter(
+            merchant_wallet=merchant_wallet,
+            qr_type='dynamic',
+            expires_at__isnull=True,
+            status='active'
+        ).first()
+
+        if not qr_code:
+            # Generate unique QR code ID
+            qr_code_id = QRCodeService._generate_qr_id()
+
+            # Create QR code record with null expires_at and high max_uses
+            qr_code = QRCode.objects.create(
+                qr_code_id=qr_code_id,
+                merchant_wallet=merchant_wallet,
+                amount_cents=None,
+                qr_type='dynamic',
+                status='active',
+                description='Permanent Wallet QR Code',
+                max_uses=999999999,
+                current_uses=0,
+                expires_at=None
+            )
+
+        # Generate QR code image data payload
+        qr_data = f"ewallet://pay?qr_id={qr_code.qr_code_id}&amount=0&merchant={merchant_wallet_id}"
 
         qr = qrcode.QRCode(version=1, box_size=10, border=4)
         qr.add_data(qr_data)
@@ -242,7 +298,7 @@ class QRCodeService:
             # Validate QR code status
             if qr_code.status != 'active':
                 if qr_code.status == 'expired':
-                    raise QRExpiredError(expired_at=qr_code.expires_at.isoformat())
+                    raise QRExpiredError(expired_at=qr_code.expires_at.isoformat() if qr_code.expires_at else None)
                 elif qr_code.status == 'used':
                     raise QRAlreadyUsedError(
                         max_uses=qr_code.max_uses,
@@ -251,7 +307,7 @@ class QRCodeService:
                 raise ValueError(f"QR code is {qr_code.status}")
 
             # Check expiration
-            if timezone.now() > qr_code.expires_at:
+            if qr_code.expires_at and timezone.now() > qr_code.expires_at:
                 qr_code.status = 'expired'
                 qr_code.save(update_fields=['status'])
                 raise QRExpiredError(expired_at=qr_code.expires_at.isoformat())

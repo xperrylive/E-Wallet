@@ -90,7 +90,7 @@ class QRCode(models.Model):
     description = models.TextField(blank=True, null=True)
     max_uses = models.IntegerField(default=1)
     current_uses = models.IntegerField(default=0)
-    expires_at = models.DateTimeField(db_index=True)
+    expires_at = models.DateTimeField(db_index=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
